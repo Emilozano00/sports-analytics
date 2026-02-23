@@ -91,47 +91,7 @@ st.markdown("""
     border: 1px solid rgba(201,168,76,0.3);
 }
 
-/* ── Match card ───────────────────────────────────────────────── */
-.match-card {
-    background: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 14px;
-    padding: 1.2rem 1rem;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    margin-bottom: 1.2rem;
-}
-.match-card-header {
-    text-align: center;
-    font-size: 0.85rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 0.8rem;
-    font-weight: 600;
-}
-.vs-circle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: #c9a84c;
-    color: #ffffff;
-    font-weight: 800;
-    font-size: 1rem;
-    margin: 0 auto;
-    box-shadow: 0 2px 8px rgba(201,168,76,0.3);
-}
-.team-label {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 0.3rem;
-}
-.team-label.home { color: #2d8a4e; }
-.team-label.away { color: #c0392b; }
+/* (match card section uses native Streamlit components) */
 
 /* ── Probability tricolor bar ─────────────────────────────────── */
 .prob-bar-container {
@@ -213,45 +173,7 @@ st.markdown("""
 .reliability-inline.warn { border-left-color: #f0a500; }
 .reliability-inline.danger { border-left-color: #c0392b; }
 
-/* ── Context card ─────────────────────────────────────────────── */
-.ctx-card {
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 14px;
-    overflow: hidden;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    margin: 1rem 0;
-}
-.ctx-header {
-    padding: 0.6rem 1rem;
-    color: #fff;
-    font-weight: 700;
-    font-size: 0.95rem;
-}
-.ctx-header.home { background: #2d8a4e; }
-.ctx-header.away { background: #c0392b; }
-.ctx-body { padding: 0.8rem 1rem; }
-.ctx-stat {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.35rem 0;
-    border-bottom: 1px solid #f0f2f6;
-    font-size: 0.88rem;
-}
-.ctx-stat:last-child { border-bottom: none; }
-.ctx-stat .label { color: #888; }
-.ctx-stat .value { font-weight: 700; color: #1a472a; }
-
-/* ── Table comparison bar ─────────────────────────────────────── */
-.table-compare {
-    background: #f0f2f6;
-    border-radius: 10px;
-    padding: 0.8rem 1rem;
-    text-align: center;
-    font-size: 0.9rem;
-    color: #444;
-    margin: 0.5rem 0 1rem;
-}
+/* (context section uses native Streamlit components) */
 
 /* ── Section divider ──────────────────────────────────────────── */
 .section-divider {
@@ -269,136 +191,7 @@ st.markdown("""
     display: inline-block;
 }
 
-/* ── Jornada card ─────────────────────────────────────────────── */
-.jornada-card {
-    background: #fff;
-    border-radius: 12px;
-    border: 2px solid #e0e0e0;
-    padding: 1rem;
-    margin-bottom: 0.8rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    transition: transform 0.15s ease;
-}
-.jornada-card:hover { transform: translateY(-2px); }
-.jornada-card.border-local  { border-color: #2d8a4e; }
-.jornada-card.border-empate { border-color: #f0a500; }
-.jornada-card.border-visita { border-color: #c0392b; }
-.jornada-card .teams {
-    font-weight: 700;
-    font-size: 0.95rem;
-    color: #1a472a;
-    margin-bottom: 0.5rem;
-    text-align: center;
-}
-.jornada-card .mini-bar {
-    display: flex;
-    border-radius: 6px;
-    overflow: hidden;
-    height: 22px;
-    margin-bottom: 0.5rem;
-}
-.jornada-card .mini-bar .seg {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 0.7rem;
-    font-weight: 700;
-    min-width: 28px;
-}
-.jornada-card .mini-bar .seg.local  { background: #2d8a4e; }
-.jornada-card .mini-bar .seg.empate { background: #f0a500; }
-.jornada-card .mini-bar .seg.visita { background: #c0392b; }
-.jornada-card .card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.jornada-card .mini-badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-}
-.jornada-card .mini-badge.alta  { background: #2d8a4e; color: #fff; }
-.jornada-card .mini-badge.media { background: #f0a500; color: #333; }
-.jornada-card .mini-badge.baja  { background: #c0392b; color: #fff; }
-.jornada-card .pred-text {
-    font-size: 0.8rem;
-    color: #666;
-    font-weight: 600;
-}
-
-/* ── Odds comparison in jornada ───────────────────────────────── */
-.odds-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.78rem;
-    color: #888;
-    padding: 0.2rem 0;
-}
-.odds-row .diff-warn { color: #c0392b; font-weight: 700; }
-
-/* ── Jornada summary row ──────────────────────────────────────── */
-.jornada-row {
-    background: #fff;
-    border: 1px solid #e8e8e8;
-    border-radius: 10px;
-    padding: 0.7rem 1rem;
-    margin-bottom: 0.5rem;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-}
-.jornada-row.border-local  { border-left: 4px solid #2d8a4e; }
-.jornada-row.border-empate { border-left: 4px solid #f0a500; }
-.jornada-row.border-visita { border-left: 4px solid #c0392b; }
-.jornada-row .matchup {
-    font-weight: 700;
-    font-size: 0.92rem;
-    color: #1a472a;
-}
-.jornada-row .probs {
-    font-size: 0.82rem;
-    color: #555;
-    font-family: monospace;
-}
-.jornada-row .pred-pill {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #fff;
-}
-.jornada-row .pred-pill.local  { background: #2d8a4e; }
-.jornada-row .pred-pill.empate { background: #f0a500; color: #333; }
-.jornada-row .pred-pill.visita { background: #c0392b; }
-.jornada-row .conf-pill {
-    display: inline-block;
-    padding: 1px 8px;
-    border-radius: 10px;
-    font-size: 0.68rem;
-    font-weight: 700;
-}
-.jornada-row .conf-pill.alta  { background: rgba(45,138,78,0.15); color: #2d8a4e; }
-.jornada-row .conf-pill.media { background: rgba(240,165,0,0.15); color: #b8860b; }
-.jornada-row .conf-pill.baja  { background: rgba(192,57,43,0.15); color: #c0392b; }
-.jornada-row .odds-text {
-    font-size: 0.78rem;
-    color: #888;
-    font-family: monospace;
-}
-.jornada-header-row {
-    display: flex;
-    padding: 0.4rem 1rem;
-    margin-bottom: 0.3rem;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+/* (jornada section uses only native Streamlit components) */
 
 /* ── Footer ───────────────────────────────────────────────────── */
 .app-footer {
@@ -420,9 +213,7 @@ st.markdown("""
     .prob-bar { height: 36px; }
     .prob-bar .seg { font-size: 0.75rem; }
     .pred-callout { font-size: 1rem; }
-    .jornada-card .teams { font-size: 0.85rem; }
-    .jornada-row .matchup { font-size: 0.82rem; }
-    .jornada-row .probs { font-size: 0.75rem; }
+    /* jornada section is native Streamlit — no custom mobile rules */
 }
 </style>
 """, unsafe_allow_html=True)
@@ -628,75 +419,74 @@ if fixtures_list:
                 "odds": jornada_odds.get(fid),
             })
 
-        # Build summary using native Streamlit columns
-        # Header row
-        h1, h2, h3, h4, h5 = st.columns([3.5, 2.5, 1, 1, 2.5])
-        with h1:
-            st.markdown("**Partido**")
-        with h2:
-            st.markdown("**L / E / V**")
-        with h3:
-            st.markdown("**Pred**")
-        with h4:
-            st.markdown("**Conf**")
-        with h5:
-            st.markdown("**Mercado**")
+        # ── Summary: one row per match using native Streamlit ──────
+        # Emoji indicators for prediction type
+        _pred_icons = {0: "🟢", 1: "🟡", 2: "🔴"}
+        _pred_names = {0: "Local", 1: "Empate", 2: "Visita"}
+        _conf_icons = {"ALTA": "🟢", "MEDIA": "🟡", "BAJA": "🔴"}
 
         for r in table_rows:
-            matchup = f"{r['home']} vs {r['away']}"
-
             if r["has_model"] and r["model_probs"] is not None:
                 mp = r["model_probs"]
                 j_pred = int(np.argmax(mp))
                 j_max = mp[j_pred]
 
-                pred_labels = {0: "L", 1: "E", 2: "V"}
-                pred_css = ["local", "empate", "visita"][j_pred]
-                border_css = ["border-local", "border-empate", "border-visita"][j_pred]
-
                 if j_max > 0.55:
-                    conf_lbl, conf_css = "ALTA", "alta"
+                    conf_lbl = "ALTA"
                 elif j_max >= 0.45:
-                    conf_lbl, conf_css = "MEDIA", "media"
+                    conf_lbl = "MEDIA"
                 else:
-                    conf_lbl, conf_css = "BAJA", "baja"
+                    conf_lbl = "BAJA"
 
-                probs_txt = f"{mp[0]:.0%} / {mp[1]:.0%} / {mp[2]:.0%}"
-                pred_html = f'<span class="pred-pill {pred_css}">{pred_labels[j_pred]}</span>'
-                conf_html = f'<span class="conf-pill {conf_css}">{conf_lbl}</span>'
+                pred_display = f"{_pred_icons[j_pred]} {_pred_names[j_pred]}"
+                conf_display = f"{_conf_icons[conf_lbl]} {conf_lbl}"
+                probs_display = f"`{mp[0]:.0%}` / `{mp[1]:.0%}` / `{mp[2]:.0%}`"
             else:
-                probs_txt = "—"
-                pred_html = "—"
-                conf_html = "—"
-                border_css = ""
+                pred_display = "—"
+                conf_display = "—"
+                probs_display = "—"
 
-            odds_txt = "—"
+            odds_display = "—"
             if r["has_odds"] and r["odds"]:
                 o = r["odds"]
-                odds_txt = f"{o['prob_home']:.0%} / {o['prob_draw']:.0%} / {o['prob_away']:.0%}"
+                odds_display = f"`{o['prob_home']:.0%}` / `{o['prob_draw']:.0%}` / `{o['prob_away']:.0%}`"
 
-            c1, c2, c3, c4, c5 = st.columns([3.5, 2.5, 1, 1, 2.5])
+            c1, c2, c3, c4 = st.columns([4, 3, 2, 2])
             with c1:
-                st.markdown(f'<div class="jornada-row {border_css}"><span class="matchup">{matchup}</span></div>',
-                            unsafe_allow_html=True)
+                st.markdown(f"**{r['home']}** vs **{r['away']}**")
             with c2:
-                st.markdown(f'<span class="probs" style="font-family:monospace;font-size:0.85rem;color:#555;">{probs_txt}</span>',
-                            unsafe_allow_html=True)
+                st.caption(f"L / E / V: {probs_display}")
             with c3:
-                st.markdown(f'<div class="jornada-row">{pred_html}</div>', unsafe_allow_html=True)
+                st.markdown(pred_display)
             with c4:
-                st.markdown(f'<div class="jornada-row">{conf_html}</div>', unsafe_allow_html=True)
-            with c5:
-                st.markdown(f'<span style="font-family:monospace;font-size:0.8rem;color:#888;">{odds_txt}</span>',
-                            unsafe_allow_html=True)
+                st.markdown(conf_display)
 
-        # ── Detailed cards (expandable) ──────────────────────────
+            # Odds comparison below the row if available
+            if r["has_odds"] and r["odds"] and r["has_model"] and r["model_probs"] is not None:
+                o = r["odds"]
+                mp = r["model_probs"]
+                diffs = [
+                    (mp[0] - o["prob_home"]) * 100,
+                    (mp[1] - o["prob_draw"]) * 100,
+                    (mp[2] - o["prob_away"]) * 100,
+                ]
+                warn_parts = [f"**{lbl} {d:+.0f}pp**" if abs(d) > 10 else f"{lbl} {d:+.0f}pp"
+                              for d, lbl in zip(diffs, ["L", "E", "V"])]
+                bk = o.get("bookmaker", "Mercado")
+                st.caption(f"{bk}: {odds_display} | Delta: {', '.join(warn_parts)}")
+            elif r["has_odds"] and r["odds"]:
+                bk = r["odds"].get("bookmaker", "Mercado")
+                st.caption(f"{bk}: {odds_display}")
+
+            st.markdown("---")
+
+        # ── Detailed cards (expandable) — native Streamlit ────────
         with st.expander("Ver tarjetas detalladas por partido"):
             for row_start in range(0, len(round_fixtures), 3):
-                row_fixtures = round_fixtures[row_start:row_start + 3]
+                row_slice = round_fixtures[row_start:row_start + 3]
                 cols = st.columns(3)
 
-                for idx, fx in enumerate(row_fixtures):
+                for idx, fx in enumerate(row_slice):
                     fid = fx["fixture_id"]
                     home_team = fx["home"]
                     away_team = fx["away"]
@@ -705,13 +495,11 @@ if fixtures_list:
                     r = next(rr for rr in table_rows if rr["fid"] == fid)
 
                     with cols[idx]:
+                        st.markdown(f"**{home_team}** vs **{away_team}**")
+
                         if not r["has_model"] and not r["has_odds"]:
-                            st.markdown(f"""
-                            <div class="jornada-card">
-                                <div class="teams">{home_team} vs {away_team}</div>
-                                <div style="text-align:center;color:#888;font-size:0.8rem;">Sin datos</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.caption("Sin datos suficientes")
+                            st.markdown("---")
                             continue
 
                         model_probs = r["model_probs"]
@@ -721,84 +509,41 @@ if fixtures_list:
                         if has_model and model_probs is not None:
                             j_pred = int(np.argmax(model_probs))
                             j_max = model_probs[j_pred]
-                            border_cls = ["border-local", "border-empate", "border-visita"][j_pred]
-                            pred_labels = [f"{home_team}", "Empate", f"{away_team}"]
-                            pred_short = pred_labels[j_pred]
+                            pred_labels = [home_team, "Empate", away_team]
 
                             if j_max > 0.55:
-                                j_conf, j_conf_css = "ALTA", "alta"
+                                j_conf = "ALTA"
                             elif j_max >= 0.45:
-                                j_conf, j_conf_css = "MEDIA", "media"
+                                j_conf = "MEDIA"
                             else:
-                                j_conf, j_conf_css = "BAJA", "baja"
+                                j_conf = "BAJA"
 
-                            ml = max(model_probs[0] * 100, 5)
-                            me = max(model_probs[1] * 100, 5)
-                            mv = max(model_probs[2] * 100, 5)
-                            mt = ml + me + mv
-                            ml_n = ml / mt * 100
-                            me_n = me / mt * 100
-                            mv_n = mv / mt * 100
+                            st.metric(
+                                label="Prediccion",
+                                value=pred_labels[j_pred],
+                                delta=f"{j_max:.0%} — {j_conf}",
+                            )
 
-                            mini_bar = f"""
-                            <div class="mini-bar">
-                                <div class="seg local" style="width:{ml_n:.1f}%">{model_probs[0]:.0%}</div>
-                                <div class="seg empate" style="width:{me_n:.1f}%">{model_probs[1]:.0%}</div>
-                                <div class="seg visita" style="width:{mv_n:.1f}%">{model_probs[2]:.0%}</div>
-                            </div>
-                            """
+                            # Probability bars
+                            st.caption(f"Local: {model_probs[0]:.0%}")
+                            st.progress(model_probs[0])
+                            st.caption(f"Empate: {model_probs[1]:.0%}")
+                            st.progress(model_probs[1])
+                            st.caption(f"Visita: {model_probs[2]:.0%}")
+                            st.progress(model_probs[2])
                         else:
-                            border_cls = ""
-                            mini_bar = ""
-                            pred_short = "—"
-                            j_conf_css = ""
-                            j_conf = ""
+                            st.caption("Modelo: sin datos")
 
-                        odds_html = ""
-                        if has_odds and has_model and model_probs is not None:
-                            o = jornada_odds[fid]
-                            bk = o.get("bookmaker", "?")
-                            diffs = [
-                                (model_probs[0] - o['prob_home']) * 100,
-                                (model_probs[1] - o['prob_draw']) * 100,
-                                (model_probs[2] - o['prob_away']) * 100,
-                            ]
-                            diff_parts = []
-                            for d, lbl in zip(diffs, ["L", "E", "V"]):
-                                cls = ' class="diff-warn"' if abs(d) > 10 else ''
-                                diff_parts.append(f"<span{cls}>{lbl} {d:+.0f}pp</span>")
-                            odds_html = f"""
-                            <div class="odds-row">
-                                <span style="font-weight:600;">{bk}</span>
-                                {" ".join(diff_parts)}
-                            </div>
-                            """
-                        elif has_odds:
-                            o = jornada_odds[fid]
-                            bk = o.get("bookmaker", "?")
-                            odds_html = f"""
-                            <div class="odds-row">
-                                <span>{bk}: L {o['prob_home']:.0%} E {o['prob_draw']:.0%} V {o['prob_away']:.0%}</span>
-                            </div>
-                            """
+                        if has_odds and r["odds"]:
+                            o = r["odds"]
+                            bk = o.get("bookmaker", "Mercado")
+                            st.caption(
+                                f"{bk}: L {o['prob_home']:.0%} / "
+                                f"E {o['prob_draw']:.0%} / "
+                                f"V {o['prob_away']:.0%}"
+                            )
 
-                        card_footer = ""
-                        if has_model:
-                            card_footer = f"""
-                            <div class="card-footer">
-                                <span class="pred-text">{pred_short}</span>
-                                <span class="mini-badge {j_conf_css}">{j_conf}</span>
-                            </div>
-                            """
-
-                        st.markdown(f"""
-                        <div class="jornada-card {border_cls}">
-                            <div class="teams">{home_team} vs {away_team}</div>
-                            {mini_bar}
-                            {odds_html}
-                            {card_footer}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown("---")
 
     # Show model accuracy comparison if odds model available
     if odds_model is not None:
@@ -817,32 +562,24 @@ else:
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">Prediccion individual</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="match-card">', unsafe_allow_html=True)
-st.markdown('<div class="match-card-header">Selecciona los equipos</div>', unsafe_allow_html=True)
-
 col_home, col_vs, col_away = st.columns([5, 2, 5])
 
 with col_home:
-    st.markdown('<p class="team-label home">LOCAL</p>', unsafe_allow_html=True)
+    st.markdown("**LOCAL**")
     home = st.selectbox("Equipo local", teams_ready,
                         index=teams_ready.index("Cruz Azul"),
                         label_visibility="collapsed")
 
 with col_vs:
-    st.markdown("""
-    <div style="display:flex;align-items:center;justify-content:center;height:100%;padding-top:1.2rem;">
-        <div class="vs-circle">VS</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("")
+    st.markdown("### VS")
 
 with col_away:
-    st.markdown('<p class="team-label away">VISITANTE</p>', unsafe_allow_html=True)
+    st.markdown("**VISITANTE**")
     default_away = teams_ready.index("Club America") if "Club America" in teams_ready else 1
     away = st.selectbox("Equipo visitante", teams_ready,
                         index=default_away,
                         label_visibility="collapsed")
-
-st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Validation ───────────────────────────────────────────────────────
 if home == away:
@@ -966,48 +703,44 @@ st.markdown('<div class="section-title">Contexto del partido</div>', unsafe_allo
 
 c1, c2 = st.columns(2)
 
-
-def _build_ctx_html(team_name, feats, standing, is_home=True):
-    """Build HTML for a context card side."""
-    side = "home" if is_home else "away"
-    rows = ""
-
-    racha = feats["racha_puntos"]
-    if not np.isnan(racha):
-        rows += f'<div class="ctx-stat"><span class="label">Racha (ult. 3)</span><span class="value">{int(racha)}/9 pts</span></div>'
-
-    goles = feats["goles_rolling"]
-    if not np.isnan(goles):
-        rows += f'<div class="ctx-stat"><span class="label">Goles/partido (ult. 5)</span><span class="value">{goles:.1f}</span></div>'
-
-    if standing:
-        rows += f'<div class="ctx-stat"><span class="label">Posicion</span><span class="value">#{standing["rank"]}</span></div>'
-        gd = standing["goalsDiff"]
-        gd_str = f"+{gd}" if gd > 0 else str(gd)
-        rows += f'<div class="ctx-stat"><span class="label">Puntos</span><span class="value">{standing["points"]} (GD {gd_str})</span></div>'
-    else:
-        pts = feats["puntos_acum"]
-        if not np.isnan(pts):
-            rows += f'<div class="ctx-stat"><span class="label">Puntos acum.</span><span class="value">{int(pts)}</span></div>'
-
-    return f"""
-    <div class="ctx-card">
-        <div class="ctx-header {side}">{team_name}</div>
-        <div class="ctx-body">{rows}</div>
-    </div>
-    """
-
-
 st_home = standings.get(home) if standings else None
 st_away = standings.get(away) if standings else None
 
 with c1:
-    st.markdown(_build_ctx_html(home, hf, st_home, is_home=True), unsafe_allow_html=True)
+    st.markdown(f"**{home}**")
+    racha_h = hf["racha_puntos"]
+    goles_h = hf["goles_rolling"]
+    if not np.isnan(racha_h):
+        st.metric("Racha (ult. 3)", f"{int(racha_h)}/9 pts")
+    if not np.isnan(goles_h):
+        st.metric("Goles/partido (ult. 5)", f"{goles_h:.1f}")
+    if st_home:
+        st.metric("Posicion", f"#{st_home['rank']}")
+        gd = st_home["goalsDiff"]
+        st.metric("Puntos", f"{st_home['points']}", delta=f"GD {gd:+d}")
+    else:
+        pts_h_fallback = hf["puntos_acum"]
+        if not np.isnan(pts_h_fallback):
+            st.metric("Puntos acumulados", f"{int(pts_h_fallback)}")
 
 with c2:
-    st.markdown(_build_ctx_html(away, af, st_away, is_home=False), unsafe_allow_html=True)
+    st.markdown(f"**{away}**")
+    racha_a = af["racha_puntos"]
+    goles_a = af["goles_rolling"]
+    if not np.isnan(racha_a):
+        st.metric("Racha (ult. 3)", f"{int(racha_a)}/9 pts")
+    if not np.isnan(goles_a):
+        st.metric("Goles/partido (ult. 5)", f"{goles_a:.1f}")
+    if st_away:
+        st.metric("Posicion", f"#{st_away['rank']}")
+        gd = st_away["goalsDiff"]
+        st.metric("Puntos", f"{st_away['points']}", delta=f"GD {gd:+d}")
+    else:
+        pts_a_fallback = af["puntos_acum"]
+        if not np.isnan(pts_a_fallback):
+            st.metric("Puntos acumulados", f"{int(pts_a_fallback)}")
 
-# Table comparison bar
+# Table comparison
 if standings and home in standings and away in standings:
     rank_h = standings[home]["rank"]
     rank_a = standings[away]["rank"]
@@ -1015,22 +748,20 @@ if standings and home in standings and away in standings:
     pts_a = standings[away]["points"]
     diff_pts = pts_h - pts_a
     if rank_h < rank_a:
-        compare_txt = f"<strong>{home}</strong> (#{rank_h}) vs <strong>{away}</strong> (#{rank_a}) &mdash; diferencia de <strong>{abs(diff_pts)} pts</strong>"
+        st.info(f"**{home}** (#{rank_h}) vs **{away}** (#{rank_a}) — diferencia de **{abs(diff_pts)} pts**")
     elif rank_h > rank_a:
-        compare_txt = f"<strong>{away}</strong> (#{rank_a}) vs <strong>{home}</strong> (#{rank_h}) &mdash; diferencia de <strong>{abs(diff_pts)} pts</strong>"
+        st.info(f"**{away}** (#{rank_a}) vs **{home}** (#{rank_h}) — diferencia de **{abs(diff_pts)} pts**")
     else:
-        compare_txt = "Equipos igualados en la tabla"
-    st.markdown(f'<div class="table-compare">{compare_txt}</div>', unsafe_allow_html=True)
+        st.info("Equipos igualados en la tabla")
 else:
     diff_pts = hf["puntos_acum"] - af["puntos_acum"]
     if not np.isnan(diff_pts):
         if diff_pts > 0:
-            compare_txt = f"<strong>{home}</strong> va <strong>+{int(diff_pts)} pts</strong> arriba en la tabla"
+            st.info(f"**{home}** va **+{int(diff_pts)} pts** arriba en la tabla")
         elif diff_pts < 0:
-            compare_txt = f"<strong>{away}</strong> va <strong>+{int(abs(diff_pts))} pts</strong> arriba en la tabla"
+            st.info(f"**{away}** va **+{int(abs(diff_pts))} pts** arriba en la tabla")
         else:
-            compare_txt = "Equipos igualados en puntos"
-        st.markdown(f'<div class="table-compare">{compare_txt}</div>', unsafe_allow_html=True)
+            st.info("Equipos igualados en puntos")
 
 
 # ══════════════════════════════════════════════════════════════════════
