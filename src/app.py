@@ -319,7 +319,7 @@ if standings:
                 "DG": t["goalsDiff"],
             })
         rows.sort(key=lambda r: r["Pos"])
-        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(rows))
 
 # ── Reliability profile (expandable) ─────────────────────────────────
 st.markdown("---")
