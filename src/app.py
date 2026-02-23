@@ -359,15 +359,32 @@ st.markdown("---")
 st.markdown("## Jornada — Modelo vs Mercado")
 
 
-def load_fixtures_list(season, tournament):
-    """Lee fixtures_cache/{tournament}_{season}_fixtures_list.json"""
+@st.cache_data(ttl=3600, show_spinner="Cargando fixtures...")
+def load_fixtures_list(api_season, tournament):
+    """Carga fixtures desde archivo local o desde la API."""
     base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     cache_dir = os.path.join(base_dir, "data", "raw", "fixtures_cache")
-    path = os.path.join(cache_dir, f"{tournament.lower()}_{season}_fixtures_list.json")
-    if not os.path.exists(path):
-        return None
-    with open(path) as f:
-        return json.load(f)
+    year = api_season + 1  # API season 2025 -> Clausura 2026
+    path = os.path.join(cache_dir, f"{tournament.lower()}_{year}_fixtures_list.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    # Fallback: fetch from API
+    from api_client import get
+    data = get("fixtures", {"league": 262, "season": api_season})
+    fixtures = []
+    for f in data["response"]:
+        if tournament in f["league"]["round"]:
+            fixtures.append({
+                "fixture_id": f["fixture"]["id"],
+                "date": f["fixture"]["date"],
+                "round": f["league"]["round"],
+                "home": f["teams"]["home"]["name"],
+                "away": f["teams"]["away"]["name"],
+                "status": f["fixture"]["status"]["short"],
+            })
+    fixtures.sort(key=lambda x: x["date"])
+    return fixtures
 
 
 @st.cache_data(ttl=3600)
@@ -382,8 +399,8 @@ def get_jornada_odds(fixture_ids: tuple) -> dict:
     return results
 
 
-# Load Clausura 2026 fixtures
-fixtures_list = load_fixtures_list(2026, "clausura")
+# Load Clausura 2026 fixtures (API season 2025)
+fixtures_list = load_fixtures_list(2025, "Clausura")
 
 if fixtures_list:
     # Extract unique jornadas
