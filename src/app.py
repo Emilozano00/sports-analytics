@@ -857,7 +857,7 @@ with st.expander("Historial de aciertos del modelo"):
 # ══════════════════════════════════════════════════════════════════════
 st.markdown("""
 <div class="app-footer">
-    Predicciones basadas en datos de Apertura 2025 y Clausura 2025.<br>
+    El modelo aprendio patrones de 3 torneos de Liga MX y usa los resultados mas recientes del Clausura 2026 para generar cada prediccion.<br>
     Esto es solo una estimacion — los partidos de futbol son impredecibles por naturaleza.
 </div>
 """, unsafe_allow_html=True)
