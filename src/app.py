@@ -352,7 +352,7 @@ st.markdown("""
 <div class="header-hero">
     <h1>Liga MX Predictor</h1>
     <p class="subtitle">Clausura 2026</p>
-    <span class="model-tag">Random Forest v6 &middot; 200 arboles</span>
+    <span class="model-tag">Predicciones basadas en los ultimos 5 partidos de cada equipo</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -419,69 +419,53 @@ if fixtures_list:
                 "odds": jornada_odds.get(fid),
             })
 
-        # ── Summary: one row per match using native Streamlit ──────
-        # Emoji indicators for prediction type
-        _pred_icons = {0: "🟢", 1: "🟡", 2: "🔴"}
-        _pred_names = {0: "Local", 1: "Empate", 2: "Visita"}
-        _conf_icons = {"ALTA": "🟢", "MEDIA": "🟡", "BAJA": "🔴"}
-
+        # ── Summary: one simple row per match ─────────────────────────
         for r in table_rows:
             if r["has_model"] and r["model_probs"] is not None:
                 mp = r["model_probs"]
                 j_pred = int(np.argmax(mp))
                 j_max = mp[j_pred]
 
-                if j_max > 0.55:
-                    conf_lbl = "ALTA"
-                elif j_max >= 0.45:
-                    conf_lbl = "MEDIA"
+                # Build a human-readable phrase
+                if j_pred == 0:
+                    if j_max > 0.55:
+                        phrase = f"🟢 **Favorito: {r['home']}** (juega de local)"
+                    else:
+                        phrase = f"🟡 Ligera ventaja para **{r['home']}**, pero puede pasar cualquier cosa"
+                elif j_pred == 2:
+                    if j_max > 0.55:
+                        phrase = f"🔴 **Favorito: {r['away']}** (gana de visitante)"
+                    else:
+                        phrase = f"🟡 Ligera ventaja para **{r['away']}**, pero el local puede sorprender"
                 else:
-                    conf_lbl = "BAJA"
+                    phrase = "🟡 **Partido muy parejo**, dificil de predecir"
 
-                pred_display = f"{_pred_icons[j_pred]} {_pred_names[j_pred]}"
-                conf_display = f"{_conf_icons[conf_lbl]} {conf_lbl}"
-                probs_display = f"`{mp[0]:.0%}` / `{mp[1]:.0%}` / `{mp[2]:.0%}`"
+                # Odds insight (human-readable)
+                odds_phrase = ""
+                if r["has_odds"] and r["odds"]:
+                    o = r["odds"]
+                    diff_home = (mp[0] - o["prob_home"]) * 100
+                    diff_away = (mp[2] - o["prob_away"]) * 100
+                    if diff_home > 10:
+                        odds_phrase = f"El modelo ve mas valor en **{r['home']}** que las casas de apuestas"
+                    elif diff_away > 10:
+                        odds_phrase = f"El modelo ve mas valor en **{r['away']}** que las casas de apuestas"
+                    elif diff_home < -10:
+                        odds_phrase = f"Las casas de apuestas favorecen mas a **{r['home']}** que nuestro modelo"
+                    elif diff_away < -10:
+                        odds_phrase = f"Las casas de apuestas favorecen mas a **{r['away']}** que nuestro modelo"
             else:
-                pred_display = "—"
-                conf_display = "—"
-                probs_display = "—"
+                phrase = "Sin datos suficientes para predecir"
+                odds_phrase = ""
 
-            odds_display = "—"
-            if r["has_odds"] and r["odds"]:
-                o = r["odds"]
-                odds_display = f"`{o['prob_home']:.0%}` / `{o['prob_draw']:.0%}` / `{o['prob_away']:.0%}`"
-
-            c1, c2, c3, c4 = st.columns([4, 3, 2, 2])
-            with c1:
-                st.markdown(f"**{r['home']}** vs **{r['away']}**")
-            with c2:
-                st.caption(f"L / E / V: {probs_display}")
-            with c3:
-                st.markdown(pred_display)
-            with c4:
-                st.markdown(conf_display)
-
-            # Odds comparison below the row if available
-            if r["has_odds"] and r["odds"] and r["has_model"] and r["model_probs"] is not None:
-                o = r["odds"]
-                mp = r["model_probs"]
-                diffs = [
-                    (mp[0] - o["prob_home"]) * 100,
-                    (mp[1] - o["prob_draw"]) * 100,
-                    (mp[2] - o["prob_away"]) * 100,
-                ]
-                warn_parts = [f"**{lbl} {d:+.0f}pp**" if abs(d) > 10 else f"{lbl} {d:+.0f}pp"
-                              for d, lbl in zip(diffs, ["L", "E", "V"])]
-                bk = o.get("bookmaker", "Mercado")
-                st.caption(f"{bk}: {odds_display} | Delta: {', '.join(warn_parts)}")
-            elif r["has_odds"] and r["odds"]:
-                bk = r["odds"].get("bookmaker", "Mercado")
-                st.caption(f"{bk}: {odds_display}")
-
+            st.markdown(f"### {r['home']} vs {r['away']}")
+            st.markdown(phrase)
+            if odds_phrase:
+                st.caption(odds_phrase)
             st.markdown("---")
 
         # ── Detailed cards (expandable) — native Streamlit ────────
-        with st.expander("Ver tarjetas detalladas por partido"):
+        with st.expander("Ver detalle de probabilidades por partido"):
             for row_start in range(0, len(round_fixtures), 3):
                 row_slice = round_fixtures[row_start:row_start + 3]
                 cols = st.columns(3)
@@ -512,46 +496,52 @@ if fixtures_list:
                             pred_labels = [home_team, "Empate", away_team]
 
                             if j_max > 0.55:
-                                j_conf = "ALTA"
+                                j_conf = "alta"
                             elif j_max >= 0.45:
-                                j_conf = "MEDIA"
+                                j_conf = "media"
                             else:
-                                j_conf = "BAJA"
+                                j_conf = "baja"
 
                             st.metric(
                                 label="Prediccion",
                                 value=pred_labels[j_pred],
-                                delta=f"{j_max:.0%} — {j_conf}",
+                                delta=f"Confianza {j_conf} ({j_max:.0%})",
                             )
 
                             # Probability bars
-                            st.caption(f"Local: {model_probs[0]:.0%}")
+                            st.caption(f"Gana {home_team}: {model_probs[0]:.0%}")
                             st.progress(model_probs[0])
                             st.caption(f"Empate: {model_probs[1]:.0%}")
                             st.progress(model_probs[1])
-                            st.caption(f"Visita: {model_probs[2]:.0%}")
+                            st.caption(f"Gana {away_team}: {model_probs[2]:.0%}")
                             st.progress(model_probs[2])
                         else:
-                            st.caption("Modelo: sin datos")
+                            st.caption("No hay datos suficientes para este partido")
 
                         if has_odds and r["odds"]:
                             o = r["odds"]
-                            bk = o.get("bookmaker", "Mercado")
+                            bk = o.get("bookmaker", "Casas de apuestas")
                             st.caption(
-                                f"{bk}: L {o['prob_home']:.0%} / "
-                                f"E {o['prob_draw']:.0%} / "
-                                f"V {o['prob_away']:.0%}"
+                                f"{bk}: Local {o['prob_home']:.0%} / "
+                                f"Empate {o['prob_draw']:.0%} / "
+                                f"Visita {o['prob_away']:.0%}"
                             )
 
                         st.markdown("---")
 
     # Show model accuracy comparison if odds model available
     if odds_model is not None:
-        with st.expander("Comparacion de modelos (base vs + odds)"):
-            st.markdown(f"**Modelo base** (23 features): {base_cv:.0%} accuracy (CV)")
-            st.markdown(f"**Modelo + odds** (26 features): {odds_cv:.0%} accuracy (CV)")
+        with st.expander("Modelo con datos de casas de apuestas"):
+            st.markdown(
+                f"Tenemos dos versiones del modelo: una que solo usa estadisticas de partidos "
+                f"(acierta **{base_cv:.0%}**), y otra que tambien usa informacion de las "
+                f"casas de apuestas (acierta **{odds_cv:.0%}**)."
+            )
             delta_pp = (odds_cv - base_cv) * 100
-            st.markdown(f"**Delta:** {delta_pp:+.1f} pp")
+            if delta_pp > 0:
+                st.markdown(f"Agregar datos de apuestas mejora el modelo en **{delta_pp:.1f} puntos porcentuales**.")
+            else:
+                st.markdown("Agregar datos de apuestas no mejora significativamente el modelo.")
 else:
     st.info("No se encontraron fixtures de Clausura 2026. Ejecuta extract_season.py primero.")
 
@@ -644,55 +634,77 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Confidence
+# Human-readable explanation
 max_prob = probs[pred_idx]
+if pred_idx == 0:
+    if max_prob > 0.55:
+        human_phrase = f"El modelo cree que **{home}** tiene buenas posibilidades de ganar en casa."
+    else:
+        human_phrase = f"El modelo le da una ligera ventaja a **{home}** jugando de local, pero no es seguro."
+elif pred_idx == 2:
+    if max_prob > 0.55:
+        human_phrase = f"El modelo cree que **{away}** puede ganar incluso jugando de visitante."
+    else:
+        human_phrase = f"El modelo le da una ligera ventaja a **{away}**, pero el local puede complicarle."
+else:
+    human_phrase = "El modelo no ve un favorito claro. Cualquier resultado es posible."
+
+st.markdown(human_phrase)
+
+# Confidence
 if max_prob > 0.55:
     conf_level, conf_css = "ALTA", "alta"
-    conf_desc = "La senal del modelo es clara."
+    conf_desc = "El modelo tiene bastante seguridad en esta prediccion."
 elif max_prob >= 0.45:
     conf_level, conf_css = "MEDIA", "media"
-    conf_desc = "Hay una tendencia pero no es concluyente."
+    conf_desc = "Hay una tendencia, pero no es concluyente."
 else:
     conf_level, conf_css = "BAJA", "baja"
     conf_desc = "Partido muy parejo, cualquier resultado es posible."
 
 st.markdown(f"""
 <div style="text-align:center;margin:0.8rem 0;">
-    <span class="conf-badge {conf_css}">{conf_level}</span>
+    <span class="conf-badge {conf_css}">Confianza {conf_level}</span>
     <p class="conf-desc">{conf_desc}</p>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Reliability inline ───────────────────────────────────────────────
+# ── Reliability (human-readable) ─────────────────────────────────────
 result_ok, result_n = BACKTEST_BY_RESULT[pred_idx]
 result_acc = result_ok / result_n if result_n > 0 else 0
-result_labels_es = {0: "victoria local", 1: "empate", 2: "victoria visitante"}
 
 conf_ok, conf_n = BACKTEST_BY_CONF[conf_level]
 conf_acc = conf_ok / conf_n
 
+# Convert to "X de cada 10" format
+result_of_10 = round(result_acc * 10)
+conf_of_10 = round(conf_acc * 10)
+
 if pred_idx == 1:
-    st.markdown(f"""
-    <div class="reliability-inline danger">
-        <strong>Atencion:</strong> En el backtest (52 partidos, Clausura J8-J13), el modelo
-        acerto <strong>0% de los empates</strong> ({result_ok}/{result_n}).
-        Esta prediccion es poco fiable — el modelo casi nunca predice empates y cuando lo hace, no acierta.
-    </div>
-    """, unsafe_allow_html=True)
+    st.warning(
+        "**Ojo:** Este modelo casi nunca predice empates, y cuando lo hace, "
+        "no suele acertar. Toma esta prediccion con mucha cautela."
+    )
 else:
+    result_labels_es = {0: "victoria local", 1: "empate", 2: "victoria visitante"}
     if result_acc >= 0.7:
-        border_class = ""
+        st.info(
+            f"**Historial de aciertos:** De cada 10 veces que el modelo predice "
+            f"{result_labels_es[pred_idx]}, acierta **{result_of_10}**. "
+            f"Con confianza {conf_level.lower()}, acierta **{conf_of_10} de cada 10**."
+        )
     elif result_acc >= 0.5:
-        border_class = "warn"
+        st.warning(
+            f"**Historial de aciertos:** De cada 10 veces que el modelo predice "
+            f"{result_labels_es[pred_idx]}, acierta **{result_of_10}**. "
+            f"No es tan seguro — tomalo como orientacion, no como certeza."
+        )
     else:
-        border_class = "danger"
-    st.markdown(f"""
-    <div class="reliability-inline {border_class}">
-        <strong>Fiabilidad historica:</strong> Cuando predice {result_labels_es[pred_idx]},
-        acierta <strong>{result_acc:.0%}</strong> ({result_ok}/{result_n}) en backtest.
-        Con confianza {conf_level}, acierta <strong>{conf_acc:.0%}</strong> ({conf_ok}/{conf_n}).
-    </div>
-    """, unsafe_allow_html=True)
+        st.error(
+            f"**Historial de aciertos:** De cada 10 veces que el modelo predice "
+            f"{result_labels_es[pred_idx]}, solo acierta **{result_of_10}**. "
+            f"Esta prediccion es poco confiable."
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -793,48 +805,50 @@ if standings:
 # RELIABILITY PROFILE (expander)
 # ══════════════════════════════════════════════════════════════════════
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-with st.expander("Perfil de confiabilidad del modelo (backtest)"):
-    st.markdown("**Backtest walk-forward:** Clausura 2025, Jornadas 8-13 (52 partidos)")
+with st.expander("Historial de aciertos del modelo"):
     bt_ok, bt_n = BACKTEST_TOTAL
-    st.markdown(f"**Accuracy general:** {bt_ok}/{bt_n} ({bt_ok/bt_n:.0%})")
-
-    st.markdown("**Por tipo de resultado predicho:**")
-    res_names = {0: "Victoria local", 1: "Empate", 2: "Victoria visitante"}
-    for cls in [0, 1, 2]:
-        ok, n = BACKTEST_BY_RESULT[cls]
-        acc = ok / n if n > 0 else 0
-        bar_w = max(acc * 100, 2)
-        bar_color = ["#2d8a4e", "#f0a500", "#c0392b"][cls]
-        st.markdown(f"""
-        <div style="margin:0.4rem 0;">
-            <span style="font-weight:600;">{res_names[cls]}: {ok}/{n} ({acc:.0%})</span>
-            <div style="background:#e0e0e0;border-radius:6px;height:14px;margin-top:3px;">
-                <div style="width:{bar_w}%;background:{bar_color};height:100%;border-radius:6px;"></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("**Por nivel de confianza:**")
-    for conf in ["ALTA", "MEDIA", "BAJA"]:
-        ok, n = BACKTEST_BY_CONF[conf]
-        acc = ok / n
-        bar_w = max(acc * 100, 2)
-        bar_color = {"ALTA": "#2d8a4e", "MEDIA": "#f0a500", "BAJA": "#c0392b"}[conf]
-        st.markdown(f"""
-        <div style="margin:0.4rem 0;">
-            <span style="font-weight:600;">{conf}: {ok}/{n} ({acc:.0%})</span>
-            <div style="background:#e0e0e0;border-radius:6px;height:14px;margin-top:3px;">
-                <div style="width:{bar_w}%;background:{bar_color};height:100%;border-radius:6px;"></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
+    bt_of_10 = round(bt_ok / bt_n * 10)
     st.markdown(
-        "**Puntos ciegos del modelo:**\n"
-        "- Los empates son practicamente indetectables (0% acierto)\n"
-        "- Victorias visitantes: acierto moderado (43%)\n"
-        "- Partidos cerrados (diferencia <= 1 gol): 52% accuracy\n"
-        "- Goleadas (diferencia >= 2 goles): 84% accuracy"
+        f"Probamos el modelo con **{bt_n} partidos pasados** del Clausura 2025 "
+        f"(jornadas 8 a 13) para ver que tan bien predice."
+    )
+    st.markdown(f"**En general, acierta {bt_of_10} de cada 10 partidos.**")
+
+    st.markdown("---")
+    st.markdown("**Cuando predice que gana el local:**")
+    ok_l, n_l = BACKTEST_BY_RESULT[0]
+    st.markdown(f"Acierta **{round(ok_l/n_l*10)} de cada 10** veces — es donde mejor funciona.")
+    st.progress(ok_l / n_l)
+
+    st.markdown("**Cuando predice que gana el visitante:**")
+    ok_v, n_v = BACKTEST_BY_RESULT[2]
+    st.markdown(f"Acierta **{round(ok_v/n_v*10)} de cada 10** veces — acierto moderado.")
+    st.progress(ok_v / n_v)
+
+    st.markdown("**Cuando predice empate:**")
+    ok_e, n_e = BACKTEST_BY_RESULT[1]
+    st.markdown("Practicamente **nunca acierta**. El modelo no es bueno para detectar empates.")
+    st.progress(0.01)
+
+    st.markdown("---")
+    st.markdown("**Segun la confianza del modelo:**")
+    for conf_name, conf_desc in [("ALTA", "muy seguro"), ("MEDIA", "algo seguro"), ("BAJA", "poco seguro")]:
+        ok_c, n_c = BACKTEST_BY_CONF[conf_name]
+        of_10 = round(ok_c / n_c * 10)
+        st.markdown(f"Cuando esta {conf_desc} (confianza {conf_name.lower()}): acierta **{of_10} de cada 10**")
+        st.progress(ok_c / n_c)
+
+    st.markdown("---")
+    st.markdown("**Cuando NO confiar en este modelo:**")
+    st.markdown(
+        "- **Empates:** El modelo casi nunca los predice, y cuando lo hace, falla. "
+        "Si ves prediccion de empate, no te fies mucho.\n"
+        "- **Visitante favorito:** Acierta menos de la mitad de las veces. "
+        "Si dice que gana el visitante, toma la prediccion con cautela.\n"
+        "- **Partidos cerrados:** En juegos donde la diferencia es de 1 gol o menos, "
+        "el modelo es casi como lanzar una moneda.\n"
+        "- **Goleadas:** Cuando un equipo gana por 2 o mas goles, el modelo "
+        "suele haberlo visto venir (acierta 8 de cada 10 veces)."
     )
 
 
@@ -843,7 +857,7 @@ with st.expander("Perfil de confiabilidad del modelo (backtest)"):
 # ══════════════════════════════════════════════════════════════════════
 st.markdown("""
 <div class="app-footer">
-    Modelo: Random Forest (200 arboles, depth=3) entrenado con Apertura 2025 + Clausura 2025.<br>
-    Los resultados son estimaciones estadisticas, no garantias. Usa esta informacion de forma responsable.
+    Predicciones basadas en datos de Apertura 2025 y Clausura 2025.<br>
+    Esto es solo una estimacion — los partidos de futbol son impredecibles por naturaleza.
 </div>
 """, unsafe_allow_html=True)
