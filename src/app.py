@@ -122,7 +122,7 @@ teams_ready = [t for t in all_teams if not np.isnan(latest_feats[t].get("goles_r
 # ── Header ───────────────────────────────────────────────────────────
 st.markdown("# ⚽ Liga MX Predictor")
 st.markdown("Prediccion de resultado basada en Random Forest (modelo v6)")
-st.divider()
+st.markdown("---")
 
 # ── Team selectors ───────────────────────────────────────────────────
 col1, col2 = st.columns(2)
@@ -159,7 +159,7 @@ colors = ["#00d4aa", "#f0a500", "#ff6b6b"]
 icons = ["🏠", "🤝", "✈️"]
 
 # ── Results ──────────────────────────────────────────────────────────
-st.divider()
+st.markdown("---")
 
 # Probability bars
 for i in range(3):
@@ -232,7 +232,7 @@ else:
         )
 
 # ── Match context ────────────────────────────────────────────────────
-st.divider()
+st.markdown("---")
 st.markdown("### Contexto del partido")
 
 c1, c2 = st.columns(2)
@@ -322,7 +322,7 @@ if standings:
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
 # ── Reliability profile (expandable) ─────────────────────────────────
-st.divider()
+st.markdown("---")
 with st.expander("Perfil de confiabilidad del modelo (backtest)"):
     st.markdown("**Backtest walk-forward:** Clausura 2025, Jornadas 8-13 (52 partidos)")
     bt_ok, bt_n = BACKTEST_TOTAL
@@ -354,7 +354,7 @@ with st.expander("Perfil de confiabilidad del modelo (backtest)"):
     )
 
 # ── Jornada — Modelo vs Mercado ───────────────────────────────────────
-st.divider()
+st.markdown("---")
 st.markdown("## Jornada — Modelo vs Mercado")
 
 
