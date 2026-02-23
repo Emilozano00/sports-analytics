@@ -341,40 +341,29 @@ st.markdown("""
 }
 .odds-row .diff-warn { color: #c0392b; font-weight: 700; }
 
-/* ── Jornada summary table ────────────────────────────────────── */
-.jornada-summary {
+/* ── Jornada summary row ──────────────────────────────────────── */
+.jornada-row {
     background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 14px;
-    overflow: hidden;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    margin-bottom: 1.5rem;
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
-.jornada-summary table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88rem;
-}
-.jornada-summary thead th {
-    background: #1a472a;
-    color: #fff;
-    padding: 0.7rem 0.6rem;
-    text-align: center;
+.jornada-row.border-local  { border-left: 4px solid #2d8a4e; }
+.jornada-row.border-empate { border-left: 4px solid #f0a500; }
+.jornada-row.border-visita { border-left: 4px solid #c0392b; }
+.jornada-row .matchup {
     font-weight: 700;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-size: 0.92rem;
+    color: #1a472a;
 }
-.jornada-summary thead th:first-child { text-align: left; padding-left: 1rem; }
-.jornada-summary tbody td {
-    padding: 0.6rem;
-    text-align: center;
-    border-bottom: 1px solid #f0f2f6;
+.jornada-row .probs {
+    font-size: 0.82rem;
+    color: #555;
+    font-family: monospace;
 }
-.jornada-summary tbody td:first-child { text-align: left; padding-left: 1rem; font-weight: 600; color: #1a472a; }
-.jornada-summary tbody tr:last-child td { border-bottom: none; }
-.jornada-summary tbody tr:hover { background: #f8f9fa; }
-.jornada-summary .pred-pill {
+.jornada-row .pred-pill {
     display: inline-block;
     padding: 2px 10px;
     border-radius: 12px;
@@ -382,19 +371,34 @@ st.markdown("""
     font-weight: 700;
     color: #fff;
 }
-.jornada-summary .pred-pill.local  { background: #2d8a4e; }
-.jornada-summary .pred-pill.empate { background: #f0a500; color: #333; }
-.jornada-summary .pred-pill.visita { background: #c0392b; }
-.jornada-summary .conf-pill {
+.jornada-row .pred-pill.local  { background: #2d8a4e; }
+.jornada-row .pred-pill.empate { background: #f0a500; color: #333; }
+.jornada-row .pred-pill.visita { background: #c0392b; }
+.jornada-row .conf-pill {
     display: inline-block;
     padding: 1px 8px;
     border-radius: 10px;
     font-size: 0.68rem;
     font-weight: 700;
 }
-.jornada-summary .conf-pill.alta  { background: rgba(45,138,78,0.15); color: #2d8a4e; }
-.jornada-summary .conf-pill.media { background: rgba(240,165,0,0.15); color: #b8860b; }
-.jornada-summary .conf-pill.baja  { background: rgba(192,57,43,0.15); color: #c0392b; }
+.jornada-row .conf-pill.alta  { background: rgba(45,138,78,0.15); color: #2d8a4e; }
+.jornada-row .conf-pill.media { background: rgba(240,165,0,0.15); color: #b8860b; }
+.jornada-row .conf-pill.baja  { background: rgba(192,57,43,0.15); color: #c0392b; }
+.jornada-row .odds-text {
+    font-size: 0.78rem;
+    color: #888;
+    font-family: monospace;
+}
+.jornada-header-row {
+    display: flex;
+    padding: 0.4rem 1rem;
+    margin-bottom: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
 
 /* ── Footer ───────────────────────────────────────────────────── */
 .app-footer {
@@ -417,9 +421,8 @@ st.markdown("""
     .prob-bar .seg { font-size: 0.75rem; }
     .pred-callout { font-size: 1rem; }
     .jornada-card .teams { font-size: 0.85rem; }
-    .jornada-summary { font-size: 0.82rem; }
-    .jornada-summary thead th { font-size: 0.72rem; padding: 0.5rem 0.3rem; }
-    .jornada-summary tbody td { padding: 0.5rem 0.3rem; font-size: 0.8rem; }
+    .jornada-row .matchup { font-size: 0.82rem; }
+    .jornada-row .probs { font-size: 0.75rem; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -625,8 +628,20 @@ if fixtures_list:
                 "odds": jornada_odds.get(fid),
             })
 
-        # Build HTML summary table
-        html_rows = ""
+        # Build summary using native Streamlit columns
+        # Header row
+        h1, h2, h3, h4, h5 = st.columns([3.5, 2.5, 1, 1, 2.5])
+        with h1:
+            st.markdown("**Partido**")
+        with h2:
+            st.markdown("**L / E / V**")
+        with h3:
+            st.markdown("**Pred**")
+        with h4:
+            st.markdown("**Conf**")
+        with h5:
+            st.markdown("**Mercado**")
+
         for r in table_rows:
             matchup = f"{r['home']} vs {r['away']}"
 
@@ -637,7 +652,7 @@ if fixtures_list:
 
                 pred_labels = {0: "L", 1: "E", 2: "V"}
                 pred_css = ["local", "empate", "visita"][j_pred]
-                pred_full = {0: r["home"], 1: "Empate", 2: r["away"]}
+                border_css = ["border-local", "border-empate", "border-visita"][j_pred]
 
                 if j_max > 0.55:
                     conf_lbl, conf_css = "ALTA", "alta"
@@ -646,52 +661,34 @@ if fixtures_list:
                 else:
                     conf_lbl, conf_css = "BAJA", "baja"
 
-                probs_cell = f"{mp[0]:.0%} / {mp[1]:.0%} / {mp[2]:.0%}"
-                pred_cell = f'<span class="pred-pill {pred_css}">{pred_labels[j_pred]}</span>'
-                conf_cell = f'<span class="conf-pill {conf_css}">{conf_lbl}</span>'
-
-                # Odds comparison
-                odds_cell = "—"
-                if r["has_odds"] and r["odds"]:
-                    o = r["odds"]
-                    odds_cell = f"{o['prob_home']:.0%} / {o['prob_draw']:.0%} / {o['prob_away']:.0%}"
+                probs_txt = f"{mp[0]:.0%} / {mp[1]:.0%} / {mp[2]:.0%}"
+                pred_html = f'<span class="pred-pill {pred_css}">{pred_labels[j_pred]}</span>'
+                conf_html = f'<span class="conf-pill {conf_css}">{conf_lbl}</span>'
             else:
-                probs_cell = "—"
-                pred_cell = "—"
-                conf_cell = "—"
-                odds_cell = "—"
-                if r["has_odds"] and r["odds"]:
-                    o = r["odds"]
-                    odds_cell = f"{o['prob_home']:.0%} / {o['prob_draw']:.0%} / {o['prob_away']:.0%}"
+                probs_txt = "—"
+                pred_html = "—"
+                conf_html = "—"
+                border_css = ""
 
-            html_rows += f"""
-            <tr>
-                <td>{matchup}</td>
-                <td>{probs_cell}</td>
-                <td>{pred_cell}</td>
-                <td>{conf_cell}</td>
-                <td>{odds_cell}</td>
-            </tr>
-            """
+            odds_txt = "—"
+            if r["has_odds"] and r["odds"]:
+                o = r["odds"]
+                odds_txt = f"{o['prob_home']:.0%} / {o['prob_draw']:.0%} / {o['prob_away']:.0%}"
 
-        st.markdown(f"""
-        <div class="jornada-summary">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Partido</th>
-                        <th>L / E / V</th>
-                        <th>Pred</th>
-                        <th>Conf</th>
-                        <th>Mercado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {html_rows}
-                </tbody>
-            </table>
-        </div>
-        """, unsafe_allow_html=True)
+            c1, c2, c3, c4, c5 = st.columns([3.5, 2.5, 1, 1, 2.5])
+            with c1:
+                st.markdown(f'<div class="jornada-row {border_css}"><span class="matchup">{matchup}</span></div>',
+                            unsafe_allow_html=True)
+            with c2:
+                st.markdown(f'<span class="probs" style="font-family:monospace;font-size:0.85rem;color:#555;">{probs_txt}</span>',
+                            unsafe_allow_html=True)
+            with c3:
+                st.markdown(f'<div class="jornada-row">{pred_html}</div>', unsafe_allow_html=True)
+            with c4:
+                st.markdown(f'<div class="jornada-row">{conf_html}</div>', unsafe_allow_html=True)
+            with c5:
+                st.markdown(f'<span style="font-family:monospace;font-size:0.8rem;color:#888;">{odds_txt}</span>',
+                            unsafe_allow_html=True)
 
         # ── Detailed cards (expandable) ──────────────────────────
         with st.expander("Ver tarjetas detalladas por partido"):
