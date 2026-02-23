@@ -32,35 +32,6 @@ from predict import (
 )
 from extract_odds import fetch_fixture_odds
 
-# ── Bootstrap: descargar datos si no existen (Streamlit Cloud) ────────
-def _bootstrap_data():
-    """Descarga datos de la API si no existen los CSVs locales."""
-    import glob
-    raw_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "raw")
-    existing = glob.glob(os.path.join(raw_dir, "*_team_stats.csv"))
-    if existing:
-        return
-
-    from extract_season import (
-        ensure_dirs, get_fixture_list, download_tournament, build_csvs,
-    )
-    ensure_dirs()
-
-    # (API season, torneos): 2024 → Apertura+Clausura 2025, 2025 → Clausura 2026
-    seasons = [
-        (2024, ["Apertura", "Clausura"]),
-        (2025, ["Clausura"]),
-    ]
-    for season, tournaments in seasons:
-        for t in tournaments:
-            fl = get_fixture_list(t, season)
-            download_tournament(t, fl, season)
-        build_csvs(tournaments, season)
-
-
-with st.spinner("Descargando datos de Liga MX (primera vez)..."):
-    _bootstrap_data()
-
 # ── Backtest reliability profile (Clausura J8-J13, walk-forward) ─────
 # Result type: {pred_class: (aciertos, total)}
 BACKTEST_BY_RESULT = {

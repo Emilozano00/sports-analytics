@@ -6,8 +6,9 @@
 __pycache__/
 *.pyc
 
-# Data (raw es pesado y se regenera con extract_season.py)
+# Data (cache pesado, pero CSVs sí se incluyen para Streamlit Cloud)
 data/raw/
+!data/raw/*.csv
 
 # Jupyter
 .ipynb_checkpoints/
