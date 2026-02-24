@@ -4,6 +4,7 @@ Modelos de regresión para Over/Under en tarjetas amarillas, corners, y tiros.
 
 Uso:
     python src/predict_props.py                          # evalua modelo de tarjetas
+    python src/predict_props.py --retrain                # reentrenar con Cl2026
     python src/predict_props.py --corners                # tambien evalua corners
     python src/predict_props.py --shots                  # tambien evalua tiros totales
     python src/predict_props.py "Cruz Azul" "America"    # prediccion de tarjetas
@@ -31,6 +32,7 @@ ROLLING_N = 5
 
 TRAIN_SOURCES = {"apertura2025_team_stats.csv", "clausura2025_team_stats.csv"}
 TEST_SOURCES = {"clausura2026_team_stats.csv"}
+CARDS_MODEL_PATH = os.path.join(BASE_DIR, "data", "cards_model.joblib")
 
 # ── Cards config ─────────────────────────────────────────────────────
 CARDS_LINE = 3.5
@@ -582,6 +584,121 @@ def predict_cards(model, latest_feats, ref_history, home, away, referee=None):
     print()
 
 
+# ══════════════════════════════════════════════════════════════════════
+#  RETRAIN PIPELINE
+# ══════════════════════════════════════════════════════════════════════
+def retrain_cards():
+    """Retrain cards model including Clausura 2026 data, compare vs old, save."""
+    import joblib
+    from sklearn.model_selection import KFold
+
+    print("\n" + "=" * 60)
+    print("  REENTRENAMIENTO — Tarjetas Amarillas")
+    print("=" * 60)
+
+    # ── 1. Load data ─────────────────────────────────────────────────
+    print("\n[1/4] Cargando datos...")
+    df = load_data()
+    df["fecha"] = pd.to_datetime(df["fecha"])
+
+    ap2025_n = (df["fecha"].dt.year == 2024).sum() // 2
+    cl2025_n = (df["fecha"].dt.year == 2025).sum() // 2
+    cl2026_n = (df["fecha"].dt.year == 2026).sum() // 2
+    print(f"  Apertura 2025:  {ap2025_n} partidos")
+    print(f"  Clausura 2025:  {cl2025_n} partidos")
+    print(f"  Clausura 2026:  {cl2026_n} partidos (NUEVO)")
+
+    # ── 2. Build features ────────────────────────────────────────────
+    print("\n[2/4] Construyendo features...")
+    matches, team_feat_map, ref_history = build_cards_matches(df)
+    all_matches = matches.dropna(subset=CARDS_FEATURES + ["total_yc"])
+    print(f"  {len(all_matches)} partidos con features completos")
+
+    # ── 3. Old evaluation (Ap2025+Cl2025 → Cl2026) ──────────────────
+    print("\n[3/4] Comparacion: modelo anterior vs nuevo...")
+    old_train = all_matches[all_matches["_source"].isin(TRAIN_SOURCES)]
+    old_test = all_matches[all_matches["_source"].isin(TEST_SOURCES)]
+
+    X_old_train = old_train[CARDS_FEATURES].values
+    y_old_train = old_train["total_yc"].values
+    X_old_test = old_test[CARDS_FEATURES].values
+    y_old_test = old_test["total_yc"].values
+
+    rf_old = RandomForestRegressor(
+        n_estimators=200, max_depth=5, min_samples_leaf=5, random_state=42,
+    )
+    rf_old.fit(X_old_train, y_old_train)
+    y_old_pred = rf_old.predict(X_old_test)
+    old_ou = ((y_old_test > CARDS_LINE) == (y_old_pred > CARDS_LINE)).mean()
+    old_mae = mean_absolute_error(y_old_test, y_old_pred)
+
+    print(f"\n  Modelo anterior (train Ap2025+Cl2025, test Cl2026):")
+    print(f"    O/U {CARDS_LINE}: {old_ou:.0%} ({int(old_ou * len(y_old_test))}/{len(y_old_test)})")
+    print(f"    MAE: {old_mae:.2f}")
+
+    # ── 4. New model: train ALL, evaluate with 5-fold CV ─────────────
+    print(f"\n  Modelo nuevo (train ALL, 5-fold CV):")
+    X_all = all_matches[CARDS_FEATURES].values
+    y_all = all_matches["total_yc"].values
+
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    cv_ou_scores = []
+    cv_mae_scores = []
+
+    for train_idx, test_idx in kf.split(X_all):
+        X_tr, X_te = X_all[train_idx], X_all[test_idx]
+        y_tr, y_te = y_all[train_idx], y_all[test_idx]
+        rf_cv = RandomForestRegressor(
+            n_estimators=200, max_depth=5, min_samples_leaf=5, random_state=42,
+        )
+        rf_cv.fit(X_tr, y_tr)
+        y_cv_pred = rf_cv.predict(X_te)
+        cv_ou = ((y_te > CARDS_LINE) == (y_cv_pred > CARDS_LINE)).mean()
+        cv_mae = mean_absolute_error(y_te, y_cv_pred)
+        cv_ou_scores.append(cv_ou)
+        cv_mae_scores.append(cv_mae)
+
+    new_ou_cv = np.mean(cv_ou_scores)
+    new_mae_cv = np.mean(cv_mae_scores)
+    delta_ou = (new_ou_cv - old_ou) * 100
+
+    print(f"    O/U {CARDS_LINE}: {new_ou_cv:.0%} (CV promedio)")
+    print(f"    MAE: {new_mae_cv:.2f} (CV promedio)")
+    print(f"    Delta O/U: {delta_ou:+.1f} pp vs anterior ({old_ou:.0%})")
+
+    # Train final production model on all data
+    model = RandomForestRegressor(
+        n_estimators=200, max_depth=5, min_samples_leaf=5, random_state=42,
+    )
+    model.fit(X_all, y_all)
+
+    print(f"\n  Importancia de features (modelo final):")
+    for feat, imp in sorted(
+        zip(CARDS_FEATURES, model.feature_importances_), key=lambda x: -x[1]
+    ):
+        bar = "█" * int(imp * 40)
+        print(f"    {feat:<30} {imp:.0%} {bar}")
+
+    # Save
+    os.makedirs(os.path.dirname(CARDS_MODEL_PATH), exist_ok=True)
+    joblib.dump({
+        "model": model,
+        "features": CARDS_FEATURES,
+        "ref_history": {k: v for k, v in ref_history.items()},
+        "line": CARDS_LINE,
+        "cv_ou_acc": new_ou_cv,
+        "n_train": len(all_matches),
+    }, CARDS_MODEL_PATH)
+    print(f"\n  Modelo guardado: {CARDS_MODEL_PATH}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print(f"  +{cl2026_n} partidos nuevos (Clausura 2026)")
+    print(f"  O/U {CARDS_LINE}: {old_ou:.0%} -> {new_ou_cv:.0%} (CV) ({delta_ou:+.1f} pp)")
+    print(f"  MAE: {old_mae:.2f} -> {new_mae_cv:.2f} (CV)")
+    print("=" * 60)
+
+
 # ── Main ─────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(
@@ -598,7 +715,16 @@ def main():
         "--shots", action="store_true",
         help="Tambien evaluar modelo de tiros totales",
     )
+    parser.add_argument(
+        "--retrain", action="store_true",
+        help="Reentrenar modelo de tarjetas con datos de Cl2026",
+    )
     args = parser.parse_args()
+
+    # --retrain: retrain, compare, save, and exit
+    if args.retrain:
+        retrain_cards()
+        return
 
     # Always run cards model
     model, df, ref_history = train_cards_model()
