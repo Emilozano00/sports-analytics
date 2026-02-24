@@ -657,24 +657,49 @@ else:
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">Prediccion individual</div>', unsafe_allow_html=True)
 
-col_home, col_vs, col_away = st.columns([5, 2, 5])
+# Build match list from the selected jornada
+jornada_match_list = []
+try:
+    for fx in round_fixtures:
+        if fx["home"] in teams_ready and fx["away"] in teams_ready:
+            jornada_match_list.append(fx)
+except NameError:
+    pass
 
-with col_home:
-    st.markdown("**LOCAL**")
-    home = st.selectbox("Equipo local", teams_ready,
-                        index=teams_ready.index("Cruz Azul"),
-                        label_visibility="collapsed")
+custom_mode = st.checkbox(
+    "Partido personalizado (fuera de la jornada)",
+    value=len(jornada_match_list) == 0,
+)
 
-with col_vs:
-    st.markdown("")
-    st.markdown("### VS")
+if not custom_mode and jornada_match_list:
+    match_labels = [f"{fx['home']} vs {fx['away']}" for fx in jornada_match_list]
+    selected_match = st.selectbox("Selecciona un partido de la jornada", match_labels)
+    match_idx = match_labels.index(selected_match)
+    home = jornada_match_list[match_idx]["home"]
+    away = jornada_match_list[match_idx]["away"]
+else:
+    col_home, col_vs, col_away = st.columns([5, 2, 5])
 
-with col_away:
-    st.markdown("**VISITANTE**")
-    default_away = teams_ready.index("Club America") if "Club America" in teams_ready else 1
-    away = st.selectbox("Equipo visitante", teams_ready,
-                        index=default_away,
-                        label_visibility="collapsed")
+    with col_home:
+        st.markdown("**LOCAL**")
+        home = st.selectbox(
+            "Equipo local", teams_ready,
+            index=teams_ready.index("Cruz Azul") if "Cruz Azul" in teams_ready else 0,
+            label_visibility="collapsed",
+        )
+
+    with col_vs:
+        st.markdown("")
+        st.markdown("### VS")
+
+    with col_away:
+        st.markdown("**VISITANTE**")
+        default_away = teams_ready.index("Club America") if "Club America" in teams_ready else 1
+        away = st.selectbox(
+            "Equipo visitante", teams_ready,
+            index=default_away,
+            label_visibility="collapsed",
+        )
 
 # ── Validation ───────────────────────────────────────────────────────
 if home == away:
