@@ -7,10 +7,12 @@ Uso:
     python src/predict.py "america" "tigres"        # fuzzy match
     python src/predict.py --teams                    # lista equipos
     python src/predict.py --all                      # todos vs todos (muestra)
+    python src/predict.py --retrain                  # reentrenar con datos nuevos
 """
 
 import sys
 import os
+import re
 import argparse
 import warnings
 from difflib import SequenceMatcher
@@ -29,6 +31,7 @@ RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
 
 ROLLING_N = 5
 STREAK_N = 3
+MODEL_PATH = os.path.join(BASE_DIR, "data", "model.joblib")
 
 FEATURES = [
     "home_goles_rolling",
@@ -476,6 +479,164 @@ def print_all_predictions(teams, model, scaler, cv_acc, latest_feats):
     print()
 
 
+# ── Retrain pipeline ─────────────────────────────────────────────────
+def parse_jornada(ronda):
+    """Extract jornada number from ronda like 'Clausura - 8'."""
+    if pd.isna(ronda):
+        return None
+    m = re.search(r"(\d+)", str(ronda))
+    return int(m.group(1)) if m else None
+
+
+def retrain_and_save():
+    """Retrain model including Clausura 2026 data, validate, and save."""
+    import joblib
+
+    print("\n" + "=" * 60)
+    print("  REENTRENAMIENTO DEL MODELO")
+    print("=" * 60)
+
+    # ── 1. Load all data ─────────────────────────────────────────────
+    print("\n[1/4] Cargando datos...")
+    df = load_data()
+    df["fecha"] = pd.to_datetime(df["fecha"])
+
+    # Count matches per source (Ap2025=2024, Cl2025=2025, Cl2026=2026)
+    ap2025_n = (df["fecha"].dt.year == 2024).sum() // 2
+    cl2025_n = (df["fecha"].dt.year == 2025).sum() // 2
+    cl2026_n = (df["fecha"].dt.year == 2026).sum() // 2
+
+    print(f"  Apertura 2025:  {ap2025_n} partidos")
+    print(f"  Clausura 2025:  {cl2025_n} partidos")
+    print(f"  Clausura 2026:  {cl2026_n} partidos (NUEVO)")
+    print(f"  Total:          {ap2025_n + cl2025_n + cl2026_n} partidos")
+
+    # ── 2. Build features on ALL data ────────────────────────────────
+    print("\n[2/4] Construyendo features...")
+    matches, _ = build_features(df)
+    matches_clean = matches.dropna(subset=FEATURES).copy()
+    matches_clean["jornada"] = matches_clean["ronda"].apply(parse_jornada)
+    matches_clean["year"] = matches_clean["fecha"].dt.year
+    print(f"  {len(matches_clean)} partidos con features completos")
+
+    # ── 3. Walk-forward: train Ap2025+Cl2025 J1-7, test Cl2025 J8-13
+    print("\n[3/4] Walk-forward validation (Clausura 2025, J8-13)...")
+    wf_test_mask = (matches_clean["year"] == 2025) & (matches_clean["jornada"] >= 8)
+    wf_train_mask = ~wf_test_mask & (matches_clean["year"] < 2026)
+
+    wf_train = matches_clean[wf_train_mask]
+    wf_test = matches_clean[wf_test_mask]
+
+    print(f"  Train: {len(wf_train)} partidos (Ap2025 + Cl2025 J1-7)")
+    print(f"  Test:  {len(wf_test)} partidos (Cl2025 J8-13)")
+
+    if len(wf_test) > 0:
+        X_wf_train = wf_train[FEATURES].values
+        y_wf_train = wf_train["resultado"].values
+        X_wf_test = wf_test[FEATURES].values
+        y_wf_test = wf_test["resultado"].values
+
+        scaler_wf = StandardScaler()
+        X_wf_train_s = scaler_wf.fit_transform(X_wf_train)
+        X_wf_test_s = scaler_wf.transform(X_wf_test)
+
+        rf_wf = RandomForestClassifier(
+            n_estimators=200, max_depth=3, min_samples_leaf=5,
+            max_features="sqrt", random_state=42,
+        )
+        rf_wf.fit(X_wf_train_s, y_wf_train)
+        preds = rf_wf.predict(X_wf_test_s)
+
+        probs_wf = rf_wf.predict_proba(X_wf_test_s)
+        overall_correct = (preds == y_wf_test).sum()
+        overall_total = len(y_wf_test)
+        overall_acc = overall_correct / overall_total
+
+        print(f"\n  Resultados walk-forward:")
+        by_result = {}
+        for label, code in [("Local", 0), ("Empate", 1), ("Visita", 2)]:
+            mask = y_wf_test == code
+            n_cat = mask.sum()
+            correct = int((preds[mask] == y_wf_test[mask]).sum()) if n_cat > 0 else 0
+            by_result[code] = (correct, int(n_cat))
+            if n_cat > 0:
+                print(f"    {label:>7}: {correct}/{n_cat} = {correct/n_cat:.0%}")
+            else:
+                print(f"    {label:>7}: 0 partidos")
+
+        # Confidence breakdown
+        max_probs = probs_wf.max(axis=1)
+        by_conf = {}
+        for conf_name, lo, hi in [("ALTA", 0.55, 1.0), ("MEDIA", 0.45, 0.55), ("BAJA", 0.0, 0.45)]:
+            if conf_name == "ALTA":
+                mask = max_probs > 0.55
+            elif conf_name == "MEDIA":
+                mask = (max_probs >= 0.45) & (max_probs <= 0.55)
+            else:
+                mask = max_probs < 0.45
+            n_conf = mask.sum()
+            correct = int((preds[mask] == y_wf_test[mask]).sum()) if n_conf > 0 else 0
+            by_conf[conf_name] = (correct, int(n_conf))
+
+        print(f"\n  Por confianza:")
+        for conf_name in ["ALTA", "MEDIA", "BAJA"]:
+            ok, n = by_conf[conf_name]
+            pct = f"{ok/n:.0%}" if n > 0 else "N/A"
+            print(f"    {conf_name:>5}: {ok}/{n} = {pct}")
+
+        print(f"\n  Overall:  {overall_correct}/{overall_total} = {overall_acc:.0%}")
+        print(f"  Anterior: 35/52 = 67%")
+
+        # Output constants for app.py
+        print(f"\n  Constantes para app.py:")
+        print(f"    BACKTEST_BY_RESULT = {{")
+        print(f"        0: ({by_result[0][0]}, {by_result[0][1]}),   # Local")
+        print(f"        1: ({by_result[1][0]}, {by_result[1][1]}),     # Empate")
+        print(f"        2: ({by_result[2][0]}, {by_result[2][1]}),    # Visita")
+        print(f"    }}")
+        print(f"    BACKTEST_BY_CONF = {{")
+        for conf_name in ["ALTA", "MEDIA", "BAJA"]:
+            ok, n = by_conf[conf_name]
+            print(f'        "{conf_name}": ({ok}, {n}),')
+        print(f"    }}")
+        print(f"    BACKTEST_TOTAL = ({overall_correct}, {overall_total})")
+    else:
+        print("  (!) Sin partidos de test para walk-forward")
+
+    # ── 4. Train production model on ALL data ────────────────────────
+    print("\n[4/4] Entrenando modelo de produccion...")
+
+    # CV on old data (without Cl2026)
+    old_data = matches_clean[matches_clean["year"] < 2026]
+    _, _, old_cv = train_model(old_data, features=FEATURES)
+
+    # CV on all data (with Cl2026)
+    model, scaler, new_cv = train_model(matches_clean, features=FEATURES)
+
+    delta = (new_cv - old_cv) * 100
+    print(f"  CV sin Cl2026:  {old_cv:.1%}")
+    print(f"  CV con Cl2026:  {new_cv:.1%}")
+    print(f"  Delta:          {delta:+.1f} pp")
+
+    # Save model
+    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+    joblib.dump({
+        "model": model,
+        "scaler": scaler,
+        "features": FEATURES,
+        "cv_acc": new_cv,
+        "n_train": len(matches_clean),
+    }, MODEL_PATH)
+    print(f"\n  Modelo guardado: {MODEL_PATH}")
+
+    # Summary
+    print("\n" + "=" * 60)
+    print(f"  +{cl2026_n} partidos nuevos (Clausura 2026 J1-7)")
+    print(f"  CV: {old_cv:.1%} -> {new_cv:.1%} ({delta:+.1f} pp)")
+    print(f"  Walk-forward: {overall_acc:.0%}" if len(wf_test) > 0 else "  Walk-forward: N/A")
+    print("=" * 60)
+
+
 # ── Main ─────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(
@@ -486,7 +647,13 @@ def main():
     parser.add_argument("--all", action="store_true", help="Mostrar jornada ejemplo con 9 partidos")
     parser.add_argument("--teams", action="store_true", help="Listar equipos disponibles")
     parser.add_argument("--compare-odds", action="store_true", help="Comparar modelo base vs modelo + odds")
+    parser.add_argument("--retrain", action="store_true", help="Reentrenar modelo con datos nuevos (Cl2026)")
     args = parser.parse_args()
+
+    # --retrain: retrain, validate, save, and exit
+    if args.retrain:
+        retrain_and_save()
+        return
 
     # Load data
     df = load_data()

@@ -36,16 +36,16 @@ from predict_props import normalize_referee, CARDS_LINE
 
 # ── Backtest reliability profile (Clausura J8-J13, walk-forward) ─────
 BACKTEST_BY_RESULT = {
-    0: (29, 31),   # Local: 94%
+    0: (25, 31),   # Local: 81%
     1: (0, 7),     # Empate: 0%
     2: (6, 14),    # Visita: 43%
 }
 BACKTEST_BY_CONF = {
-    "ALTA": (11, 15),   # 73%
-    "MEDIA": (14, 21),  # 67%
-    "BAJA": (10, 16),   # 62%
+    "ALTA": (12, 13),   # 92%
+    "MEDIA": (11, 24),  # 46%
+    "BAJA": (8, 15),    # 53%
 }
-BACKTEST_TOTAL = (35, 52)  # 67% overall
+BACKTEST_TOTAL = (31, 52)  # 60% overall
 
 # ── Page config ──────────────────────────────────────────────────────
 st.set_page_config(page_title="Liga MX Predictor", page_icon="⚽", layout="centered")
