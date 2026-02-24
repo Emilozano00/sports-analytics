@@ -521,8 +521,17 @@ def retrain_and_save():
 
     # ── 3. Walk-forward: train Ap2025+Cl2025 J1-7, test Cl2025 J8-13
     print("\n[3/4] Walk-forward validation (Clausura 2025, J8-13)...")
-    wf_test_mask = (matches_clean["year"] == 2025) & (matches_clean["jornada"] >= 8)
-    wf_train_mask = ~wf_test_mask & (matches_clean["year"] < 2026)
+    wf_test_mask = (
+        (matches_clean["year"] == 2025)
+        & (matches_clean["jornada"] >= 8)
+        & (matches_clean["jornada"] <= 13)
+    )
+    # Walk-forward: train ONLY on data before the test period
+    # Ap2025 (year=2024) + Cl2025 J1-7 (year=2025, jornada<8)
+    wf_train_mask = (
+        (matches_clean["year"] == 2024)
+        | ((matches_clean["year"] == 2025) & (matches_clean["jornada"] < 8))
+    )
 
     wf_train = matches_clean[wf_train_mask]
     wf_test = matches_clean[wf_test_mask]

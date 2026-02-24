@@ -38,14 +38,14 @@ from predict_props import normalize_referee, CARDS_LINE
 BACKTEST_BY_RESULT = {
     0: (25, 31),   # Local: 81%
     1: (0, 7),     # Empate: 0%
-    2: (6, 14),    # Visita: 43%
+    2: (6, 16),    # Visita: 38%
 }
 BACKTEST_BY_CONF = {
     "ALTA": (12, 13),   # 92%
-    "MEDIA": (11, 24),  # 46%
-    "BAJA": (8, 15),    # 53%
+    "MEDIA": (11, 25),  # 44%
+    "BAJA": (8, 16),    # 50%
 }
-BACKTEST_TOTAL = (31, 52)  # 60% overall
+BACKTEST_TOTAL = (31, 54)  # 57% overall
 
 # ── Page config ──────────────────────────────────────────────────────
 st.set_page_config(page_title="Liga MX Predictor", page_icon="⚽", layout="centered")
