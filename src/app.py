@@ -32,6 +32,7 @@ from predict import (
     load_odds_data,
 )
 from extract_odds import fetch_fixture_odds
+from predict_props import normalize_referee, CARDS_LINE
 
 # ── Backtest reliability profile (Clausura J8-J13, walk-forward) ─────
 BACKTEST_BY_RESULT = {
@@ -325,6 +326,102 @@ def detect_next_jornada(fixtures_list, rounds):
     return rounds[-1] if rounds else None
 
 
+@st.cache_data(show_spinner="Cargando análisis de tarjetas...")
+def prepare_cards_model():
+    """Train yellow cards model, compute team/referee averages."""
+    from sklearn.ensemble import RandomForestRegressor
+
+    df = load_data()
+    df = df.copy()
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    df["yellow_cards"] = pd.to_numeric(df["yellow_cards"], errors="coerce")
+    df["ref_norm"] = df["arbitro"].apply(normalize_referee)
+    df = df.sort_values(["fecha", "fixture_id"]).reset_index(drop=True)
+
+    # Latest per-team rolling YC average (not shifted — for live prediction)
+    team_yc = {}
+    for team in df["equipo"].unique():
+        tdf = df[df["equipo"] == team].sort_values("fecha")
+        avgs = tdf["yellow_cards"].rolling(5, min_periods=5).mean()
+        valid = avgs.dropna()
+        team_yc[team] = float(valid.iloc[-1]) if len(valid) > 0 else float("nan")
+
+    # Match-level data
+    df_h = df[df["side"] == "home"][
+        ["fixture_id", "fecha", "equipo", "yellow_cards", "ref_norm"]
+    ].copy()
+    df_h.columns = ["fixture_id", "fecha", "home", "yc_home", "ref_norm"]
+    df_a = df[df["side"] == "away"][
+        ["fixture_id", "equipo", "yellow_cards"]
+    ].copy()
+    df_a.columns = ["fixture_id", "away", "yc_away"]
+
+    matches = df_h.merge(df_a, on="fixture_id").sort_values("fecha").reset_index(drop=True)
+    matches["total_yc"] = matches["yc_home"] + matches["yc_away"]
+
+    # Referee expanding average (prior games only for training features)
+    ref_history = {}
+    ref_avg_map = {}
+    for _, row in matches.iterrows():
+        ref = row["ref_norm"]
+        fid = row["fixture_id"]
+        total = row["total_yc"]
+        if ref and ref in ref_history and len(ref_history[ref]) > 0:
+            ref_avg_map[fid] = float(np.mean(ref_history[ref]))
+        else:
+            ref_avg_map[fid] = float("nan")
+        if ref and not pd.isna(total):
+            ref_history.setdefault(ref, []).append(float(total))
+
+    matches["ref_yc_avg"] = matches["fixture_id"].map(ref_avg_map)
+
+    # Per-team rolling (shifted for training)
+    team_feat_shifted = {}
+    for team in df["equipo"].unique():
+        tdf = df[df["equipo"] == team].sort_values("fecha").copy()
+        tdf["yc_avg"] = tdf["yellow_cards"].rolling(5, min_periods=5).mean().shift(1)
+        for _, r in tdf.iterrows():
+            team_feat_shifted[(r["fixture_id"], team)] = r["yc_avg"]
+
+    for prefix, col in [("home", "home"), ("away", "away")]:
+        matches[f"{prefix}_yc_avg"] = matches.apply(
+            lambda row, c=col: team_feat_shifted.get(
+                (row["fixture_id"], row[c]), np.nan
+            ),
+            axis=1,
+        )
+
+    features = ["home_yc_avg", "away_yc_avg", "ref_yc_avg"]
+    clean = matches.dropna(subset=features + ["total_yc"])
+
+    if len(clean) < 10:
+        return None, team_yc, ref_history
+
+    model = RandomForestRegressor(
+        n_estimators=200, max_depth=5, min_samples_leaf=5, random_state=42,
+    )
+    model.fit(clean[features].values, clean["total_yc"].values)
+    return model, team_yc, ref_history
+
+
+@st.cache_data(ttl=3600)
+def load_fixture_referees():
+    """Load referee assignments from full season API cache."""
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    cache_path = os.path.join(
+        base, "data", "raw", "fixtures_cache", "full_season_2025_fixtures.json"
+    )
+    if not os.path.exists(cache_path):
+        return {}
+    with open(cache_path) as f:
+        data = json.load(f)
+    return {
+        fx["fixture"]["id"]: fx["fixture"].get("referee")
+        for fx in data
+        if fx["fixture"].get("referee")
+    }
+
+
 # ── Load everything ──────────────────────────────────────────────────
 (base_model, base_scaler, base_cv,
  odds_model, odds_scaler, odds_cv,
@@ -343,6 +440,14 @@ teams_ready = [t for t in all_teams if not np.isnan(latest_feats[t].get("goles_r
 
 # Load Clausura 2026 fixtures (API season 2025)
 fixtures_list = load_fixtures_list(2025, "Clausura")
+
+# Cards model (for referee analysis)
+try:
+    cards_model, team_yc, ref_history = prepare_cards_model()
+    fixture_referees = load_fixture_referees()
+except Exception:
+    cards_model, team_yc, ref_history = None, {}, {}
+    fixture_referees = {}
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -774,6 +879,95 @@ else:
             st.info(f"**{away}** va **+{int(abs(diff_pts))} pts** arriba en la tabla")
         else:
             st.info("Equipos igualados en puntos")
+
+
+# ══════════════════════════════════════════════════════════════════════
+# SECTION: ANALISIS DEL ARBITRO
+# ══════════════════════════════════════════════════════════════════════
+if cards_model is not None:
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Analisis del arbitro</div>',
+                unsafe_allow_html=True)
+
+    # Find referee for this matchup from upcoming fixtures
+    referee_raw = None
+    for fx in fixtures_list:
+        if fx["home"] == home and fx["away"] == away:
+            referee_raw = fixture_referees.get(fx["fixture_id"])
+            break
+
+    ref_norm = normalize_referee(referee_raw) if referee_raw else None
+    ref_avg = None
+    ref_games = 0
+    if ref_norm and ref_norm in ref_history:
+        ref_avg = np.mean(ref_history[ref_norm])
+        ref_games = len(ref_history[ref_norm])
+
+    # Global average as fallback
+    global_avgs = [np.mean(v) for v in ref_history.values() if len(v) >= 3]
+    global_avg = np.mean(global_avgs) if global_avgs else 4.4
+
+    if referee_raw and ref_avg is not None:
+        ref_display = referee_raw.split(",")[0].strip()
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.metric("Arbitro", ref_display)
+        with c2:
+            st.metric("Tarjetas/partido", f"{ref_avg:.1f}", delta=f"{ref_games} partidos dirigidos")
+
+        if ref_avg >= 5:
+            st.markdown(
+                f"**Arbitro de mano dura** — historicamente saca "
+                f"{ref_avg:.0f} tarjetas por partido. "
+                f"Espera un juego con muchas faltas marcadas."
+            )
+        elif ref_avg >= 4.2:
+            st.markdown(
+                f"**Arbitro promedio** — saca alrededor de "
+                f"{ref_avg:.0f} tarjetas por partido. Nivel normal de disciplina."
+            )
+        else:
+            st.markdown(
+                f"**Arbitro permisivo** — promedia solo "
+                f"{ref_avg:.0f} tarjetas por partido. Tiende a dejar jugar."
+            )
+
+        pred_ref_avg = ref_avg
+    else:
+        if referee_raw:
+            st.markdown(
+                f"Arbitro asignado: **{referee_raw.split(',')[0].strip()}** "
+                f"— sin historial suficiente en nuestra base de datos."
+            )
+        else:
+            st.caption(
+                "Arbitro no asignado todavia para este partido. "
+                "Estimacion con promedio de la liga."
+            )
+        pred_ref_avg = global_avg
+
+    # Model prediction
+    home_yc = team_yc.get(home, np.nan)
+    away_yc = team_yc.get(away, np.nan)
+
+    if not np.isnan(home_yc) and not np.isnan(away_yc):
+        X_cards = np.array([[home_yc, away_yc, pred_ref_avg]])
+        pred_yc = cards_model.predict(X_cards)[0]
+        margin = abs(pred_yc - CARDS_LINE)
+
+        if pred_yc > CARDS_LINE:
+            st.warning(
+                f"Prediccion: **{pred_yc:.1f} tarjetas amarillas** en el partido "
+                f"— **Over {CARDS_LINE}** (margen: {margin:.1f})"
+            )
+        else:
+            st.info(
+                f"Prediccion: **{pred_yc:.1f} tarjetas amarillas** en el partido "
+                f"— **Under {CARDS_LINE}** (margen: {margin:.1f})"
+            )
+    else:
+        st.caption("Datos insuficientes para predecir tarjetas de estos equipos.")
 
 
 # ══════════════════════════════════════════════════════════════════════
