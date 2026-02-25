@@ -359,13 +359,30 @@ def get_jornada_odds(fixture_ids: tuple) -> dict:
 
 
 def detect_next_jornada(fixtures_list, rounds):
-    """Find the next jornada that has unplayed matches."""
+    """Find the next jornada that has scheduled (not yet played) matches.
+
+    Skips postponed (PST) and cancelled (CANC) — those don't count as
+    'upcoming'.  Only NS/TBD and live statuses trigger selection.
+    """
+    now = datetime.now(timezone.utc)
+    upcoming_statuses = {"NS", "TBD", "1H", "HT", "2H"}
+
     for r in rounds:
         round_fx = [f for f in fixtures_list if f["round"] == r]
-        has_unplayed = any(f["status"] in ("NS", "TBD", "PST", "CANC", "1H", "HT", "2H")
-                          for f in round_fx)
-        if has_unplayed:
+        has_upcoming = any(f["status"] in upcoming_statuses for f in round_fx)
+        if has_upcoming:
+            print(f"  [jornada] Detectada: {r} (tiene partidos NS/TBD/live)")
             return r
+
+    # Fallback: first jornada where any match date >= today
+    for r in rounds:
+        round_fx = [f for f in fixtures_list if f["round"] == r]
+        any_future = any(f["date"][:10] >= now.strftime("%Y-%m-%d") for f in round_fx)
+        if any_future:
+            print(f"  [jornada] Fallback por fecha: {r}")
+            return r
+
+    print(f"  [jornada] Fallback final: ultima jornada")
     return rounds[-1] if rounds else None
 
 
@@ -580,16 +597,18 @@ if fixtures_list and _auto_round:
         # ── Render match cards ───────────────────────────────
         for r in table_rows:
             if not r["has_model"] or r["model_probs"] is None:
-                st.markdown(f"""
-                <div class="match-card">
-                    <div class="match-teams">
-                        <span class="team-name">{r['home']}</span>
-                        <span class="vs-label">vs</span>
-                        <span class="team-name away">{r['away']}</span>
-                    </div>
-                    <div class="pred-result" style="color:rgba(250,250,250,0.35);">Sin datos suficientes</div>
-                </div>
-                """, unsafe_allow_html=True)
+                # No-data card (left-aligned HTML to avoid markdown code block)
+                _nodata_html = (
+                    '<div class="match-card">'
+                    '<div class="match-teams">'
+                    f'<span class="team-name">{r["home"]}</span>'
+                    '<span class="vs-label">vs</span>'
+                    f'<span class="team-name away">{r["away"]}</span>'
+                    '</div>'
+                    '<div class="pred-result" style="color:rgba(250,250,250,0.35);">Sin datos suficientes</div>'
+                    '</div>'
+                )
+                st.markdown(_nodata_html, unsafe_allow_html=True)
                 continue
 
             mp = r["model_probs"]
@@ -619,37 +638,39 @@ if fixtures_list and _auto_round:
             pct_l = max(mp[0] * 100, 5)
             pct_e = max(mp[1] * 100, 5)
             pct_v = max(mp[2] * 100, 5)
-            total = pct_l + pct_e + pct_v
-            pct_l_n = pct_l / total * 100
-            pct_e_n = pct_e / total * 100
-            pct_v_n = pct_v / total * 100
+            total_pct = pct_l + pct_e + pct_v
+            pct_l_n = pct_l / total_pct * 100
+            pct_e_n = pct_e / total_pct * 100
+            pct_v_n = pct_v / total_pct * 100
 
-            st.markdown(f"""
-            <div class="{card_class}">
-                <div class="match-teams">
-                    <span class="team-name">{r['home']}</span>
-                    <span class="vs-label">vs</span>
-                    <span class="team-name away">{r['away']}</span>
-                </div>
-                <div class="prob-bar-container">
-                    <div class="prob-bar">
-                        <div class="seg local" style="width:{pct_l_n:.1f}%">{mp[0]:.0%}</div>
-                        <div class="seg empate" style="width:{pct_e_n:.1f}%">{mp[1]:.0%}</div>
-                        <div class="seg visita" style="width:{pct_v_n:.1f}%">{mp[2]:.0%}</div>
-                    </div>
-                    <div class="prob-bar-legend">
-                        <span>{r['home']}</span>
-                        <span>Empate</span>
-                        <span>{r['away']}</span>
-                    </div>
-                </div>
-                <div class="pred-result">
-                    {pred_text} &nbsp;
-                    <span class="conf-badge {conf_css}">{conf_css.upper()}</span>
-                    {override_html}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # Build HTML as single line (no leading whitespace = no markdown code block)
+            _card_html = (
+                f'<div class="{card_class}">'
+                '<div class="match-teams">'
+                f'<span class="team-name">{r["home"]}</span>'
+                '<span class="vs-label">vs</span>'
+                f'<span class="team-name away">{r["away"]}</span>'
+                '</div>'
+                '<div class="prob-bar-container">'
+                '<div class="prob-bar">'
+                f'<div class="seg local" style="width:{pct_l_n:.1f}%">{mp[0]:.0%}</div>'
+                f'<div class="seg empate" style="width:{pct_e_n:.1f}%">{mp[1]:.0%}</div>'
+                f'<div class="seg visita" style="width:{pct_v_n:.1f}%">{mp[2]:.0%}</div>'
+                '</div>'
+                '<div class="prob-bar-legend">'
+                f'<span>{r["home"]}</span>'
+                '<span>Empate</span>'
+                f'<span>{r["away"]}</span>'
+                '</div>'
+                '</div>'
+                '<div class="pred-result">'
+                f'{pred_text} &nbsp;'
+                f'<span class="conf-badge {conf_css}">{conf_css.upper()}</span>'
+                f'{override_html}'
+                '</div>'
+                '</div>'
+            )
+            st.markdown(_card_html, unsafe_allow_html=True)
 
 else:
     st.info("No se encontraron fixtures de Clausura 2026.")
