@@ -62,6 +62,9 @@ FEATURES = [
 ODDS_FEATURES = ["odds_prob_home", "odds_prob_draw", "odds_prob_away"]
 FEATURES_WITH_ODDS = FEATURES + ODDS_FEATURES  # 26 features
 
+# ── Hybrid model (Variant D) ────────────────────────────────────────
+EXP8_OVERRIDE_THRESHOLD = 0.45  # min P(visita) from Exp8 to override
+
 
 # ── Data loading ─────────────────────────────────────────────────────
 def load_odds_data():
@@ -377,6 +380,43 @@ def train_model(matches_clean, features=None):
     return model, scaler, cv_acc
 
 
+def train_exp8_model(matches_clean, features=None):
+    """Train Exp8 model: deeper RF with balanced classes for better away detection."""
+    if features is None:
+        features = FEATURES
+    X = matches_clean[features].values
+    y = matches_clean["resultado"].values
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    model = RandomForestClassifier(
+        n_estimators=300, max_depth=5, min_samples_leaf=3,
+        max_features="sqrt", class_weight="balanced", random_state=42,
+    )
+    model.fit(X_scaled, y)
+
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv_scores = cross_val_score(model, X_scaled, y, cv=cv, scoring="accuracy")
+    cv_acc = cv_scores.mean()
+
+    return model, scaler, cv_acc
+
+
+def hybrid_predict(base_probs, exp8_probs):
+    """Variant D: override to Visita when base→Local but Exp8→Visita with P>threshold.
+
+    Returns (pred_idx, display_probs, overridden).
+    """
+    base_pred = int(np.argmax(base_probs))
+    exp8_pred = int(np.argmax(exp8_probs))
+
+    if base_pred == 0 and exp8_pred == 2 and exp8_probs[2] > EXP8_OVERRIDE_THRESHOLD:
+        return 2, base_probs, True  # Override to Visita
+
+    return base_pred, base_probs, False
+
+
 # ── Display helpers ──────────────────────────────────────────────────
 def confidence_label(max_prob):
     if max_prob > 0.55:
@@ -545,6 +585,7 @@ def retrain_and_save():
         X_wf_test = wf_test[FEATURES].values
         y_wf_test = wf_test["resultado"].values
 
+        # ── Base model walk-forward ──
         scaler_wf = StandardScaler()
         X_wf_train_s = scaler_wf.fit_transform(X_wf_train)
         X_wf_test_s = scaler_wf.transform(X_wf_test)
@@ -554,27 +595,53 @@ def retrain_and_save():
             max_features="sqrt", random_state=42,
         )
         rf_wf.fit(X_wf_train_s, y_wf_train)
-        preds = rf_wf.predict(X_wf_test_s)
+        base_preds = rf_wf.predict(X_wf_test_s)
+        base_probs_wf = rf_wf.predict_proba(X_wf_test_s)
 
-        probs_wf = rf_wf.predict_proba(X_wf_test_s)
-        overall_correct = (preds == y_wf_test).sum()
+        # ── Exp8 model walk-forward ──
+        scaler_wf_exp8 = StandardScaler()
+        X_wf_train_s_exp8 = scaler_wf_exp8.fit_transform(X_wf_train)
+        X_wf_test_s_exp8 = scaler_wf_exp8.transform(X_wf_test)
+
+        rf_wf_exp8 = RandomForestClassifier(
+            n_estimators=300, max_depth=5, min_samples_leaf=3,
+            max_features="sqrt", class_weight="balanced", random_state=42,
+        )
+        rf_wf_exp8.fit(X_wf_train_s_exp8, y_wf_train)
+        exp8_probs_wf = rf_wf_exp8.predict_proba(X_wf_test_s_exp8)
+
+        # ── Apply hybrid logic (Variant D) ──
+        hybrid_preds = np.zeros(len(y_wf_test), dtype=int)
+        n_overrides = 0
+        for i in range(len(y_wf_test)):
+            pred, _, overridden = hybrid_predict(base_probs_wf[i], exp8_probs_wf[i])
+            hybrid_preds[i] = pred
+            if overridden:
+                n_overrides += 1
+
+        overall_correct = (hybrid_preds == y_wf_test).sum()
         overall_total = len(y_wf_test)
         overall_acc = overall_correct / overall_total
 
-        print(f"\n  Resultados walk-forward:")
+        # Also compute base-only for comparison
+        base_correct = (base_preds == y_wf_test).sum()
+        base_acc = base_correct / overall_total
+
+        print(f"\n  Resultados walk-forward (Hibrido Variante D):")
+        print(f"  Overrides: {n_overrides} partidos (Local→Visita)")
         by_result = {}
         for label, code in [("Local", 0), ("Empate", 1), ("Visita", 2)]:
             mask = y_wf_test == code
             n_cat = mask.sum()
-            correct = int((preds[mask] == y_wf_test[mask]).sum()) if n_cat > 0 else 0
+            correct = int((hybrid_preds[mask] == y_wf_test[mask]).sum()) if n_cat > 0 else 0
             by_result[code] = (correct, int(n_cat))
             if n_cat > 0:
                 print(f"    {label:>7}: {correct}/{n_cat} = {correct/n_cat:.0%}")
             else:
                 print(f"    {label:>7}: 0 partidos")
 
-        # Confidence breakdown
-        max_probs = probs_wf.max(axis=1)
+        # Confidence breakdown (using base model probs for confidence)
+        max_probs = base_probs_wf.max(axis=1)
         by_conf = {}
         for conf_name, lo, hi in [("ALTA", 0.55, 1.0), ("MEDIA", 0.45, 0.55), ("BAJA", 0.0, 0.45)]:
             if conf_name == "ALTA":
@@ -584,7 +651,7 @@ def retrain_and_save():
             else:
                 mask = max_probs < 0.45
             n_conf = mask.sum()
-            correct = int((preds[mask] == y_wf_test[mask]).sum()) if n_conf > 0 else 0
+            correct = int((hybrid_preds[mask] == y_wf_test[mask]).sum()) if n_conf > 0 else 0
             by_conf[conf_name] = (correct, int(n_conf))
 
         print(f"\n  Por confianza:")
@@ -593,8 +660,9 @@ def retrain_and_save():
             pct = f"{ok/n:.0%}" if n > 0 else "N/A"
             print(f"    {conf_name:>5}: {ok}/{n} = {pct}")
 
-        print(f"\n  Overall:  {overall_correct}/{overall_total} = {overall_acc:.0%}")
-        print(f"  Anterior: 35/52 = 67%")
+        print(f"\n  Hibrido:   {overall_correct}/{overall_total} = {overall_acc:.0%}")
+        print(f"  Base solo: {base_correct}/{overall_total} = {base_acc:.0%}")
+        print(f"  Mejora:    {(overall_acc - base_acc)*100:+.1f} pp")
 
         # Output constants for app.py
         print(f"\n  Constantes para app.py:")
@@ -612,37 +680,45 @@ def retrain_and_save():
     else:
         print("  (!) Sin partidos de test para walk-forward")
 
-    # ── 4. Train production model on ALL data ────────────────────────
-    print("\n[4/4] Entrenando modelo de produccion...")
+    # ── 4. Train production models on ALL data ─────────────────────
+    print("\n[4/4] Entrenando modelos de produccion (base + Exp8)...")
 
     # CV on old data (without Cl2026)
     old_data = matches_clean[matches_clean["year"] < 2026]
     _, _, old_cv = train_model(old_data, features=FEATURES)
 
-    # CV on all data (with Cl2026)
+    # Base model on all data
     model, scaler, new_cv = train_model(matches_clean, features=FEATURES)
 
-    delta = (new_cv - old_cv) * 100
-    print(f"  CV sin Cl2026:  {old_cv:.1%}")
-    print(f"  CV con Cl2026:  {new_cv:.1%}")
-    print(f"  Delta:          {delta:+.1f} pp")
+    # Exp8 model on all data
+    exp8_model, exp8_scaler, exp8_cv = train_exp8_model(matches_clean, features=FEATURES)
 
-    # Save model
+    delta = (new_cv - old_cv) * 100
+    print(f"  Base CV sin Cl2026:  {old_cv:.1%}")
+    print(f"  Base CV con Cl2026:  {new_cv:.1%}")
+    print(f"  Delta:               {delta:+.1f} pp")
+    print(f"  Exp8 CV:             {exp8_cv:.1%}")
+
+    # Save both models
     os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
     joblib.dump({
         "model": model,
         "scaler": scaler,
         "features": FEATURES,
         "cv_acc": new_cv,
+        "exp8_model": exp8_model,
+        "exp8_scaler": exp8_scaler,
         "n_train": len(matches_clean),
     }, MODEL_PATH)
-    print(f"\n  Modelo guardado: {MODEL_PATH}")
+    print(f"\n  Modelos guardados: {MODEL_PATH}")
+    print(f"  (base + Exp8 para logica hibrida Variante D)")
 
     # Summary
     print("\n" + "=" * 60)
     print(f"  +{cl2026_n} partidos nuevos (Clausura 2026 J1-7)")
-    print(f"  CV: {old_cv:.1%} -> {new_cv:.1%} ({delta:+.1f} pp)")
-    print(f"  Walk-forward: {overall_acc:.0%}" if len(wf_test) > 0 else "  Walk-forward: N/A")
+    print(f"  Base CV: {old_cv:.1%} -> {new_cv:.1%} ({delta:+.1f} pp)")
+    print(f"  Exp8 CV: {exp8_cv:.1%}")
+    print(f"  Walk-forward hibrido: {overall_acc:.0%}" if len(wf_test) > 0 else "  Walk-forward: N/A")
     print("=" * 60)
 
 

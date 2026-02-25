@@ -25,9 +25,11 @@ from predict import (
     FEATURES,
     FEATURES_WITH_ODDS,
     ODDS_FEATURES,
+    EXP8_OVERRIDE_THRESHOLD,
     build_features,
     build_matchup_vector,
     get_latest_features,
+    hybrid_predict,
     load_data,
     load_odds_data,
 )
@@ -36,16 +38,16 @@ from predict_props import normalize_referee, CARDS_LINE
 
 # ── Backtest reliability profile (Clausura J8-J13, walk-forward) ─────
 BACKTEST_BY_RESULT = {
-    0: (25, 31),   # Local: 81%
+    0: (24, 31),   # Local: 77%
     1: (0, 7),     # Empate: 0%
-    2: (6, 16),    # Visita: 38%
+    2: (10, 16),   # Visita: 62%
 }
 BACKTEST_BY_CONF = {
     "ALTA": (12, 13),   # 92%
-    "MEDIA": (11, 25),  # 44%
+    "MEDIA": (14, 25),  # 56%
     "BAJA": (8, 16),    # 50%
 }
-BACKTEST_TOTAL = (31, 54)  # 57% overall
+BACKTEST_TOTAL = (34, 54)  # 63% overall (hybrid Variant D)
 
 # ── Page config ──────────────────────────────────────────────────────
 st.set_page_config(page_title="Liga MX Predictor", page_icon="⚽", layout="centered")
@@ -235,6 +237,18 @@ def _train_rf(X, y):
     return model, scaler, cv_acc
 
 
+def _train_rf_exp8(X, y):
+    """Train Exp8 model: deeper RF with balanced classes for away detection."""
+    scaler = StandardScaler()
+    X_s = scaler.fit_transform(X)
+    model = RandomForestClassifier(
+        n_estimators=300, max_depth=5, min_samples_leaf=3,
+        max_features="sqrt", class_weight="balanced", random_state=42,
+    )
+    model.fit(X_s, y)
+    return model, scaler
+
+
 @st.cache_data(show_spinner="Entrenando modelo...")
 def prepare_model():
     df = load_data()
@@ -250,6 +264,9 @@ def prepare_model():
     y_base = matches_clean["resultado"].values
     base_model, base_scaler, base_cv = _train_rf(X_base, y_base)
 
+    # Exp8 model (same features, different hyperparams for hybrid logic)
+    exp8_model, exp8_scaler = _train_rf_exp8(X_base, y_base)
+
     # Odds model (26 features) — only if odds data available
     odds_model, odds_scaler, odds_cv = None, None, None
     if odds_df is not None and all(f in matches.columns for f in ODDS_FEATURES):
@@ -260,6 +277,7 @@ def prepare_model():
             odds_model, odds_scaler, odds_cv = _train_rf(X_odds, y_odds)
 
     return (base_model, base_scaler, base_cv,
+            exp8_model, exp8_scaler,
             odds_model, odds_scaler, odds_cv,
             latest, teams, odds_df)
 
@@ -424,6 +442,7 @@ def load_fixture_referees():
 
 # ── Load everything ──────────────────────────────────────────────────
 (base_model, base_scaler, base_cv,
+ exp8_model, exp8_scaler,
  odds_model, odds_scaler, odds_cv,
  latest_feats, all_teams, odds_df) = prepare_model()
 
@@ -506,11 +525,16 @@ if fixtures_list:
             has_odds = fid in jornada_odds
             model_probs = None
 
+            overridden = False
             if has_model:
                 X_j = build_matchup_vector(hf_j, af_j)
                 if not np.any(np.isnan(X_j)):
                     X_j_s = scaler.transform(X_j)
                     model_probs = model.predict_proba(X_j_s)[0]
+                    # Hybrid Variant D: check Exp8 for away override
+                    X_j_s_exp8 = exp8_scaler.transform(X_j)
+                    exp8_probs = exp8_model.predict_proba(X_j_s_exp8)[0]
+                    _, _, overridden = hybrid_predict(model_probs, exp8_probs)
                 else:
                     has_model = False
 
@@ -521,6 +545,7 @@ if fixtures_list:
                 "has_model": has_model,
                 "has_odds": has_odds,
                 "model_probs": model_probs,
+                "overridden": overridden,
                 "odds": jornada_odds.get(fid),
             })
 
@@ -528,7 +553,13 @@ if fixtures_list:
         for r in table_rows:
             if r["has_model"] and r["model_probs"] is not None:
                 mp = r["model_probs"]
-                j_pred = int(np.argmax(mp))
+                is_override = r.get("overridden", False)
+
+                # Apply hybrid logic for prediction
+                if is_override:
+                    j_pred = 2  # Override to Visita
+                else:
+                    j_pred = int(np.argmax(mp))
                 j_max = mp[j_pred]
 
                 # Build a human-readable phrase
@@ -538,7 +569,9 @@ if fixtures_list:
                     else:
                         phrase = f"🟡 Ligera ventaja para **{r['home']}**, pero puede pasar cualquier cosa"
                 elif j_pred == 2:
-                    if j_max > 0.55:
+                    if is_override:
+                        phrase = f"🔴 **Favorito: {r['away']}** (segunda opinion detecta ventaja visitante)"
+                    elif j_max > 0.55:
                         phrase = f"🔴 **Favorito: {r['away']}** (gana de visitante)"
                     else:
                         phrase = f"🟡 Ligera ventaja para **{r['away']}**, pero el local puede sorprender"
@@ -596,7 +629,11 @@ if fixtures_list:
                         has_odds = r["has_odds"]
 
                         if has_model and model_probs is not None:
-                            j_pred = int(np.argmax(model_probs))
+                            is_override = r.get("overridden", False)
+                            if is_override:
+                                j_pred = 2
+                            else:
+                                j_pred = int(np.argmax(model_probs))
                             j_max = model_probs[j_pred]
                             pred_labels = [home_team, "Empate", away_team]
 
@@ -717,7 +754,11 @@ if np.any(np.isnan(X_new)):
 
 X_new_s = scaler.transform(X_new)
 probs = model.predict_proba(X_new_s)[0]
-pred_idx = int(np.argmax(probs))
+
+# Hybrid Variant D: check Exp8 for away override
+X_new_s_exp8 = exp8_scaler.transform(X_new)
+exp8_probs = exp8_model.predict_proba(X_new_s_exp8)[0]
+pred_idx, _, individual_overridden = hybrid_predict(probs, exp8_probs)
 
 labels = ["Victoria local", "Empate", "Victoria visitante"]
 
@@ -763,6 +804,12 @@ st.markdown(f"""
     {pred_text[pred_idx]}
 </div>
 """, unsafe_allow_html=True)
+
+if individual_overridden:
+    st.caption(
+        "Segunda opinion: Un modelo secundario detecta ventaja visitante "
+        "— prediccion ajustada de local a visitante."
+    )
 
 # Human-readable explanation
 max_prob = probs[pred_idx]
@@ -1041,7 +1088,7 @@ with st.expander("Historial de aciertos del modelo"):
 
     st.markdown("**Cuando predice que gana el visitante:**")
     ok_v, n_v = BACKTEST_BY_RESULT[2]
-    st.markdown(f"Acierta **{round(ok_v/n_v*10)} de cada 10** veces — acierto moderado.")
+    st.markdown(f"Acierta **{round(ok_v/n_v*10)} de cada 10** veces — buen nivel de acierto.")
     st.progress(ok_v / n_v)
 
     st.markdown("**Cuando predice empate:**")
@@ -1062,8 +1109,6 @@ with st.expander("Historial de aciertos del modelo"):
     st.markdown(
         "- **Empates:** El modelo casi nunca los predice, y cuando lo hace, falla. "
         "Si ves prediccion de empate, no te fies mucho.\n"
-        "- **Visitante favorito:** Acierta menos de la mitad de las veces. "
-        "Si dice que gana el visitante, toma la prediccion con cautela.\n"
         "- **Partidos cerrados:** En juegos donde la diferencia es de 1 gol o menos, "
         "el modelo es casi como lanzar una moneda.\n"
         "- **Goleadas:** Cuando un equipo gana por 2 o mas goles, el modelo "
