@@ -36,7 +36,7 @@ from predict import (
 from extract_odds import fetch_fixture_odds
 from predict_props import normalize_referee, CARDS_LINE
 
-# ── Backtest reliability profile (Clausura J8-J13, walk-forward) ─────
+# ── Backtest reliability profile (Clausura J8-J13, walk-forward hybrid) ─
 BACKTEST_BY_RESULT = {
     0: (24, 31),   # Local: 77%
     1: (0, 7),     # Empate: 0%
@@ -54,58 +54,135 @@ st.set_page_config(page_title="Liga MX Predictor", page_icon="⚽", layout="cent
 
 
 # ══════════════════════════════════════════════════════════════════════
-# CSS GLOBAL
+# CSS GLOBAL — Dark theme
 # ══════════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-/* ── Reset & base ─────────────────────────────────────────────── */
-.block-container { padding-top: 1rem !important; }
+/* ── Reset & base ─────────────────────────────────────────── */
+.block-container {
+    padding-top: 1rem !important;
+    max-width: 720px !important;
+}
 
-/* ── Header hero ──────────────────────────────────────────────── */
+/* ── Header hero ──────────────────────────────────────────── */
 .header-hero {
-    background: #1a472a;
-    border-bottom: 4px solid #c9a84c;
-    border-radius: 12px;
+    background: linear-gradient(135deg, #0E1117 0%, #161B22 100%);
+    border-bottom: 3px solid #C4A43F;
+    border-radius: 0 0 16px 16px;
     padding: 2rem 1.5rem 1.5rem;
     text-align: center;
     margin-bottom: 1.5rem;
 }
 .header-hero h1 {
-    color: #ffffff;
-    font-size: 2.2rem;
-    margin: 0 0 0.3rem;
+    color: #FAFAFA;
+    font-size: 2rem;
+    margin: 0 0 0.25rem;
     font-weight: 800;
     letter-spacing: -0.5px;
 }
 .header-hero .subtitle {
-    color: #c9a84c;
-    font-size: 1.1rem;
+    color: #C4A43F;
+    font-size: 1.05rem;
     font-weight: 600;
+    margin: 0 0 0.6rem;
+}
+.header-hero .hero-stat {
+    color: rgba(250,250,250,0.55);
+    font-size: 0.82rem;
     margin: 0;
 }
-.header-hero .model-tag {
+.header-hero .hero-stat strong {
+    color: #00843D;
+    font-size: 0.95rem;
+}
+
+/* ── Section titles ───────────────────────────────────────── */
+.section-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #FAFAFA;
+    margin: 1.2rem 0 0.8rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid #C4A43F;
     display: inline-block;
-    background: rgba(201,168,76,0.18);
-    color: #c9a84c;
-    font-size: 0.78rem;
-    padding: 3px 12px;
+}
+
+/* ── Match card ───────────────────────────────────────────── */
+.match-card {
+    background: #1A1D24;
+    border: 1px solid #2A2D35;
+    border-radius: 12px;
+    padding: 1.2rem 1rem;
+    margin-bottom: 0.8rem;
+}
+.match-card.high-conf {
+    border-color: #C4A43F;
+    border-width: 2px;
+}
+.match-card .match-teams {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.match-card .team-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #FAFAFA;
+    flex: 1;
+}
+.match-card .team-name.away {
+    text-align: right;
+}
+.match-card .vs-label {
+    color: rgba(250,250,250,0.3);
+    font-size: 0.8rem;
+    font-weight: 400;
+    padding: 0 0.6rem;
+}
+.match-card .pred-result {
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin: 0.4rem 0 0;
+    color: #FAFAFA;
+}
+
+/* ── Confidence badges ────────────────────────────────────── */
+.conf-badge {
+    display: inline-block;
+    padding: 3px 14px;
     border-radius: 20px;
-    margin-top: 0.6rem;
-    border: 1px solid rgba(201,168,76,0.3);
+    font-weight: 700;
+    font-size: 0.72rem;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+.conf-badge.alta  { background: #00843D; color: #fff; }
+.conf-badge.media { background: #C4A43F; color: #1A1D24; }
+.conf-badge.baja  { background: #C0392B; color: #fff; }
+
+/* ── Override badge ───────────────────────────────────────── */
+.override-badge {
+    display: inline-block;
+    background: rgba(196,164,63,0.12);
+    color: #C4A43F;
+    font-size: 0.7rem;
+    padding: 2px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(196,164,63,0.25);
+    margin-left: 0.4rem;
+    vertical-align: middle;
 }
 
-/* (match card section uses native Streamlit components) */
-
-/* ── Probability tricolor bar ─────────────────────────────────── */
-.prob-bar-container {
-    margin: 1rem 0;
-}
+/* ── Tricolor probability bar ─────────────────────────────── */
+.prob-bar-container { margin: 0.6rem 0 0.3rem; }
 .prob-bar {
     display: flex;
-    border-radius: 10px;
+    border-radius: 8px;
     overflow: hidden;
-    height: 42px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    height: 34px;
 }
 .prob-bar .seg {
     display: flex;
@@ -113,110 +190,62 @@ st.markdown("""
     justify-content: center;
     color: #fff;
     font-weight: 700;
-    font-size: 0.85rem;
-    transition: width 0.5s ease;
-    min-width: 38px;
+    font-size: 0.78rem;
+    min-width: 34px;
 }
-.prob-bar .seg.local  { background: #2d8a4e; }
-.prob-bar .seg.empate { background: #f0a500; }
-.prob-bar .seg.visita { background: #c0392b; }
+.prob-bar .seg.local  { background: #00843D; }
+.prob-bar .seg.empate { background: #4A4D55; }
+.prob-bar .seg.visita { background: #2563EB; }
 .prob-bar-legend {
     display: flex;
     justify-content: space-between;
-    margin-top: 0.4rem;
-    font-size: 0.75rem;
-    color: #666;
+    margin-top: 0.25rem;
+    font-size: 0.68rem;
+    color: rgba(250,250,250,0.4);
 }
 
-/* ── Prediction callout ───────────────────────────────────────── */
+/* ── Prediction callout (individual section) ──────────────── */
 .pred-callout {
-    border-radius: 12px;
-    padding: 1rem 1.2rem;
-    text-align: center;
-    margin: 1rem 0;
-    color: #fff;
-    font-weight: 700;
-    font-size: 1.15rem;
-}
-.pred-callout.local  { background: #2d8a4e; }
-.pred-callout.empate { background: #f0a500; color: #333; }
-.pred-callout.visita { background: #c0392b; }
-.pred-callout .pred-label { font-size: 0.78rem; font-weight: 400; opacity: 0.85; display: block; margin-bottom: 0.2rem; }
-
-/* ── Confidence badge ─────────────────────────────────────────── */
-.conf-badge {
-    display: inline-block;
-    padding: 6px 22px;
-    border-radius: 30px;
-    font-weight: 800;
-    font-size: 0.95rem;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-}
-.conf-badge.alta  { background: #2d8a4e; color: #fff; }
-.conf-badge.media { background: #f0a500; color: #333; }
-.conf-badge.baja  { background: #c0392b; color: #fff; }
-.conf-desc {
-    color: #666;
-    font-size: 0.85rem;
-    margin-top: 0.3rem;
-}
-
-/* ── Reliability inline ───────────────────────────────────────── */
-.reliability-inline {
-    background: #f0f2f6;
     border-radius: 10px;
     padding: 0.8rem 1rem;
+    text-align: center;
     margin: 0.8rem 0;
-    font-size: 0.85rem;
-    color: #444;
-    border-left: 4px solid #c9a84c;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.05rem;
 }
-.reliability-inline strong { color: #1a472a; }
-.reliability-inline.warn { border-left-color: #f0a500; }
-.reliability-inline.danger { border-left-color: #c0392b; }
-
-/* (context section uses native Streamlit components) */
-
-/* ── Section divider ──────────────────────────────────────────── */
-.section-divider {
-    border: none;
-    border-top: 2px solid #e0e0e0;
-    margin: 1.8rem 0;
-}
-.section-title {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #1a472a;
-    margin: 0.5rem 0 1rem;
-    padding-bottom: 0.4rem;
-    border-bottom: 3px solid #c9a84c;
-    display: inline-block;
+.pred-callout.local  { background: #00843D; }
+.pred-callout.empate { background: #4A4D55; }
+.pred-callout.visita { background: #2563EB; }
+.pred-callout .pred-label {
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.8;
+    display: block;
+    margin-bottom: 0.15rem;
 }
 
-/* (jornada section uses only native Streamlit components) */
-
-/* ── Footer ───────────────────────────────────────────────────── */
+/* ── Footer ───────────────────────────────────────────────── */
 .app-footer {
-    background: #1a472a;
-    border-top: 3px solid #c9a84c;
-    border-radius: 10px;
-    padding: 1rem 1.5rem;
+    background: #1A1D24;
+    border-top: 2px solid #2A2D35;
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
     text-align: center;
     margin-top: 2rem;
-    color: rgba(255,255,255,0.7);
-    font-size: 0.78rem;
+    color: rgba(250,250,250,0.35);
+    font-size: 0.72rem;
 }
-.app-footer a { color: #c9a84c; text-decoration: none; }
 
-/* ── Mobile responsive ────────────────────────────────────────── */
+/* ── Mobile responsive ────────────────────────────────────── */
 @media (max-width: 768px) {
-    .header-hero h1 { font-size: 1.6rem; }
-    .header-hero .subtitle { font-size: 0.95rem; }
-    .prob-bar { height: 36px; }
-    .prob-bar .seg { font-size: 0.75rem; }
-    .pred-callout { font-size: 1rem; }
-    /* jornada section is native Streamlit — no custom mobile rules */
+    .block-container { max-width: 100% !important; }
+    .header-hero h1 { font-size: 1.5rem; }
+    .header-hero .subtitle { font-size: 0.9rem; }
+    .match-card .team-name { font-size: 0.92rem; }
+    .prob-bar { height: 28px; }
+    .prob-bar .seg { font-size: 0.68rem; min-width: 28px; }
+    .pred-callout { font-size: 0.95rem; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -295,12 +324,11 @@ def load_fixtures_list(api_season, tournament):
     """Carga fixtures desde archivo local o desde la API."""
     base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     cache_dir = os.path.join(base_dir, "data", "raw", "fixtures_cache")
-    year = api_season + 1  # API season 2025 -> Clausura 2026
+    year = api_season + 1
     path = os.path.join(cache_dir, f"{tournament.lower()}_{year}_fixtures_list.json")
     if os.path.exists(path):
         with open(path) as f:
             return json.load(f)
-    # Fallback: fetch from API
     from api_client import get
     data = get("fixtures", {"league": 262, "season": api_season})
     fixtures = []
@@ -320,7 +348,7 @@ def load_fixtures_list(api_season, tournament):
 
 @st.cache_data(ttl=3600)
 def get_jornada_odds(fixture_ids: tuple) -> dict:
-    """Fetch odds por fixture_id, cachea 1 hora. Returns {fixture_id: odds_dict}."""
+    """Fetch odds por fixture_id, cachea 1 hora."""
     results = {}
     for fid in fixture_ids:
         odds = fetch_fixture_odds(fid)
@@ -331,20 +359,17 @@ def get_jornada_odds(fixture_ids: tuple) -> dict:
 
 
 def detect_next_jornada(fixtures_list, rounds):
-    """Find the next jornada that has unplayed matches (NS/TBD status)."""
-    now = datetime.now(timezone.utc)
+    """Find the next jornada that has unplayed matches."""
     for r in rounds:
         round_fx = [f for f in fixtures_list if f["round"] == r]
-        # A jornada is "next" if it has any unplayed match
         has_unplayed = any(f["status"] in ("NS", "TBD", "PST", "CANC", "1H", "HT", "2H")
                           for f in round_fx)
         if has_unplayed:
             return r
-    # Fallback: last jornada
     return rounds[-1] if rounds else None
 
 
-@st.cache_data(show_spinner="Cargando análisis de tarjetas...")
+@st.cache_data(show_spinner="Cargando analisis de tarjetas...")
 def prepare_cards_model():
     """Train yellow cards model, compute team/referee averages."""
     from sklearn.ensemble import RandomForestRegressor
@@ -356,7 +381,6 @@ def prepare_cards_model():
     df["ref_norm"] = df["arbitro"].apply(normalize_referee)
     df = df.sort_values(["fecha", "fixture_id"]).reset_index(drop=True)
 
-    # Latest per-team rolling YC average (not shifted — for live prediction)
     team_yc = {}
     for team in df["equipo"].unique():
         tdf = df[df["equipo"] == team].sort_values("fecha")
@@ -364,7 +388,6 @@ def prepare_cards_model():
         valid = avgs.dropna()
         team_yc[team] = float(valid.iloc[-1]) if len(valid) > 0 else float("nan")
 
-    # Match-level data
     df_h = df[df["side"] == "home"][
         ["fixture_id", "fecha", "equipo", "yellow_cards", "ref_norm"]
     ].copy()
@@ -377,7 +400,6 @@ def prepare_cards_model():
     matches = df_h.merge(df_a, on="fixture_id").sort_values("fecha").reset_index(drop=True)
     matches["total_yc"] = matches["yc_home"] + matches["yc_away"]
 
-    # Referee expanding average (prior games only for training features)
     ref_history = {}
     ref_avg_map = {}
     for _, row in matches.iterrows():
@@ -393,7 +415,6 @@ def prepare_cards_model():
 
     matches["ref_yc_avg"] = matches["fixture_id"].map(ref_avg_map)
 
-    # Per-team rolling (shifted for training)
     team_feat_shifted = {}
     for team in df["equipo"].unique():
         tdf = df[df["equipo"] == team].sort_values("fecha").copy()
@@ -440,6 +461,16 @@ def load_fixture_referees():
     }
 
 
+@st.cache_data(show_spinner=False)
+def get_recent_form(team_name, n=5):
+    """Last n results as emoji string (W/D/L)."""
+    df = load_data()
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    tdf = df[df["equipo"] == team_name].sort_values("fecha").tail(n)
+    icons = {"W": "🟢", "D": "🟡", "L": "🔴"}
+    return " ".join(icons.get(r, "⚪") for r in tdf["resultado"])
+
+
 # ── Load everything ──────────────────────────────────────────────────
 (base_model, base_scaler, base_cv,
  exp8_model, exp8_scaler,
@@ -451,16 +482,12 @@ try:
 except Exception:
     standings = None
 
-# Backward-compat aliases used throughout
 model, scaler, cv_acc = base_model, base_scaler, base_cv
 
-# Teams with complete features
 teams_ready = [t for t in all_teams if not np.isnan(latest_feats[t].get("goles_rolling", np.nan))]
 
-# Load Clausura 2026 fixtures (API season 2025)
 fixtures_list = load_fixtures_list(2025, "Clausura")
 
-# Cards model (for referee analysis)
 try:
     cards_model, team_yc, ref_history = prepare_cards_model()
     fixture_referees = load_fixture_referees()
@@ -468,39 +495,41 @@ except Exception:
     cards_model, team_yc, ref_history = None, {}, {}
     fixture_referees = {}
 
+# ── Auto-detect jornada (before header for dynamic subtitle) ─────────
+if fixtures_list:
+    _rounds = sorted(set(f["round"] for f in fixtures_list),
+                     key=lambda r: int(r.split(" - ")[-1]) if " - " in r else 0)
+    _auto_round = detect_next_jornada(fixtures_list, _rounds)
+    _jornada_num = _auto_round.split(" - ")[-1] if _auto_round and " - " in _auto_round else "?"
+else:
+    _rounds = []
+    _auto_round = None
+    _jornada_num = "?"
+
 
 # ══════════════════════════════════════════════════════════════════════
 # HEADER HERO
 # ══════════════════════════════════════════════════════════════════════
-st.markdown("""
+bt_alta_ok, bt_alta_n = BACKTEST_BY_CONF["ALTA"]
+bt_alta_pct = round(bt_alta_ok / bt_alta_n * 100)
+
+st.markdown(f"""
 <div class="header-hero">
     <h1>Liga MX Predictor</h1>
-    <p class="subtitle">Clausura 2026</p>
-    <span class="model-tag">Predicciones basadas en los ultimos 5 partidos de cada equipo</span>
+    <p class="subtitle">Clausura 2026 &mdash; Jornada {_jornada_num}</p>
+    <p class="hero-stat"><strong>{bt_alta_pct}%</strong> de acierto en predicciones de alta confianza</p>
 </div>
 """, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════
-# SECTION 1: JORNADA COMPLETA (primary view)
+# SECTION 1: JORNADA — Auto-detected, card-based
 # ══════════════════════════════════════════════════════════════════════
-if fixtures_list:
-    # Extract unique jornadas
-    rounds = sorted(set(f["round"] for f in fixtures_list),
-                    key=lambda r: int(r.split(" - ")[-1]) if " - " in r else 0)
-
-    # Auto-detect next jornada
-    next_round = detect_next_jornada(fixtures_list, rounds)
-    default_idx = rounds.index(next_round) if next_round in rounds else len(rounds) - 1
-
-    # Jornada number for display
-    jornada_num = next_round.split(" - ")[-1] if next_round and " - " in next_round else "?"
-    st.markdown(f'<div class="section-title">Jornada {jornada_num} &mdash; Predicciones</div>',
+if fixtures_list and _auto_round:
+    st.markdown(f'<div class="section-title">Jornada {_jornada_num}</div>',
                 unsafe_allow_html=True)
 
-    selected_round = st.selectbox("Selecciona jornada", rounds, index=default_idx)
-
-    # Filter fixtures for this round
+    selected_round = _auto_round
     round_fixtures = [f for f in fixtures_list if f["round"] == selected_round]
 
     if round_fixtures:
@@ -508,7 +537,7 @@ if fixtures_list:
         fixture_ids = tuple(f["fixture_id"] for f in round_fixtures)
         jornada_odds = get_jornada_odds(fixture_ids)
 
-        # ── Summary table (all matches at a glance) ──────────────
+        # ── Compute predictions for all matches ──────────────
         table_rows = []
         for fx in round_fixtures:
             fid = fx["fixture_id"]
@@ -524,14 +553,13 @@ if fixtures_list:
 
             has_odds = fid in jornada_odds
             model_probs = None
-
             overridden = False
+
             if has_model:
                 X_j = build_matchup_vector(hf_j, af_j)
                 if not np.any(np.isnan(X_j)):
                     X_j_s = scaler.transform(X_j)
                     model_probs = model.predict_proba(X_j_s)[0]
-                    # Hybrid Variant D: check Exp8 for away override
                     X_j_s_exp8 = exp8_scaler.transform(X_j)
                     exp8_probs = exp8_model.predict_proba(X_j_s_exp8)[0]
                     _, _, overridden = hybrid_predict(model_probs, exp8_probs)
@@ -549,152 +577,91 @@ if fixtures_list:
                 "odds": jornada_odds.get(fid),
             })
 
-        # ── Summary: one simple row per match ─────────────────────────
+        # ── Render match cards ───────────────────────────────
         for r in table_rows:
-            if r["has_model"] and r["model_probs"] is not None:
-                mp = r["model_probs"]
-                is_override = r.get("overridden", False)
+            if not r["has_model"] or r["model_probs"] is None:
+                st.markdown(f"""
+                <div class="match-card">
+                    <div class="match-teams">
+                        <span class="team-name">{r['home']}</span>
+                        <span class="vs-label">vs</span>
+                        <span class="team-name away">{r['away']}</span>
+                    </div>
+                    <div class="pred-result" style="color:rgba(250,250,250,0.35);">Sin datos suficientes</div>
+                </div>
+                """, unsafe_allow_html=True)
+                continue
 
-                # Apply hybrid logic for prediction
-                if is_override:
-                    j_pred = 2  # Override to Visita
-                else:
-                    j_pred = int(np.argmax(mp))
-                j_max = mp[j_pred]
+            mp = r["model_probs"]
+            is_override = r.get("overridden", False)
 
-                # Build a human-readable phrase
-                if j_pred == 0:
-                    if j_max > 0.55:
-                        phrase = f"🟢 **Favorito: {r['home']}** (juega de local)"
-                    else:
-                        phrase = f"🟡 Ligera ventaja para **{r['home']}**, pero puede pasar cualquier cosa"
-                elif j_pred == 2:
-                    if is_override:
-                        phrase = f"🔴 **Favorito: {r['away']}** (segunda opinion detecta ventaja visitante)"
-                    elif j_max > 0.55:
-                        phrase = f"🔴 **Favorito: {r['away']}** (gana de visitante)"
-                    else:
-                        phrase = f"🟡 Ligera ventaja para **{r['away']}**, pero el local puede sorprender"
-                else:
-                    phrase = "🟡 **Partido muy parejo**, dificil de predecir"
-
-                # Odds insight (human-readable)
-                odds_phrase = ""
-                if r["has_odds"] and r["odds"]:
-                    o = r["odds"]
-                    diff_home = (mp[0] - o["prob_home"]) * 100
-                    diff_away = (mp[2] - o["prob_away"]) * 100
-                    if diff_home > 10:
-                        odds_phrase = f"El modelo ve mas valor en **{r['home']}** que las casas de apuestas"
-                    elif diff_away > 10:
-                        odds_phrase = f"El modelo ve mas valor en **{r['away']}** que las casas de apuestas"
-                    elif diff_home < -10:
-                        odds_phrase = f"Las casas de apuestas favorecen mas a **{r['home']}** que nuestro modelo"
-                    elif diff_away < -10:
-                        odds_phrase = f"Las casas de apuestas favorecen mas a **{r['away']}** que nuestro modelo"
+            if is_override:
+                j_pred = 2
             else:
-                phrase = "Sin datos suficientes para predecir"
-                odds_phrase = ""
+                j_pred = int(np.argmax(mp))
+            j_max = mp[j_pred]
 
-            st.markdown(f"### {r['home']} vs {r['away']}")
-            st.markdown(phrase)
-            if odds_phrase:
-                st.caption(odds_phrase)
-            st.markdown("---")
-
-        # ── Detailed cards (expandable) — native Streamlit ────────
-        with st.expander("Ver detalle de probabilidades por partido"):
-            for row_start in range(0, len(round_fixtures), 3):
-                row_slice = round_fixtures[row_start:row_start + 3]
-                cols = st.columns(3)
-
-                for idx, fx in enumerate(row_slice):
-                    fid = fx["fixture_id"]
-                    home_team = fx["home"]
-                    away_team = fx["away"]
-
-                    # Find pre-computed data
-                    r = next(rr for rr in table_rows if rr["fid"] == fid)
-
-                    with cols[idx]:
-                        st.markdown(f"**{home_team}** vs **{away_team}**")
-
-                        if not r["has_model"] and not r["has_odds"]:
-                            st.caption("Sin datos suficientes")
-                            st.markdown("---")
-                            continue
-
-                        model_probs = r["model_probs"]
-                        has_model = r["has_model"]
-                        has_odds = r["has_odds"]
-
-                        if has_model and model_probs is not None:
-                            is_override = r.get("overridden", False)
-                            if is_override:
-                                j_pred = 2
-                            else:
-                                j_pred = int(np.argmax(model_probs))
-                            j_max = model_probs[j_pred]
-                            pred_labels = [home_team, "Empate", away_team]
-
-                            if j_max > 0.55:
-                                j_conf = "alta"
-                            elif j_max >= 0.45:
-                                j_conf = "media"
-                            else:
-                                j_conf = "baja"
-
-                            st.metric(
-                                label="Prediccion",
-                                value=pred_labels[j_pred],
-                                delta=f"Confianza {j_conf} ({j_max:.0%})",
-                            )
-
-                            # Probability bars
-                            st.caption(f"Gana {home_team}: {model_probs[0]:.0%}")
-                            st.progress(model_probs[0])
-                            st.caption(f"Empate: {model_probs[1]:.0%}")
-                            st.progress(model_probs[1])
-                            st.caption(f"Gana {away_team}: {model_probs[2]:.0%}")
-                            st.progress(model_probs[2])
-                        else:
-                            st.caption("No hay datos suficientes para este partido")
-
-                        if has_odds and r["odds"]:
-                            o = r["odds"]
-                            bk = o.get("bookmaker", "Casas de apuestas")
-                            st.caption(
-                                f"{bk}: Local {o['prob_home']:.0%} / "
-                                f"Empate {o['prob_draw']:.0%} / "
-                                f"Visita {o['prob_away']:.0%}"
-                            )
-
-                        st.markdown("---")
-
-    # Show model accuracy comparison if odds model available
-    if odds_model is not None:
-        with st.expander("Modelo con datos de casas de apuestas"):
-            st.markdown(
-                f"Tenemos dos versiones del modelo: una que solo usa estadisticas de partidos "
-                f"(acierta **{base_cv:.0%}**), y otra que tambien usa informacion de las "
-                f"casas de apuestas (acierta **{odds_cv:.0%}**)."
-            )
-            delta_pp = (odds_cv - base_cv) * 100
-            if delta_pp > 0:
-                st.markdown(f"Agregar datos de apuestas mejora el modelo en **{delta_pp:.1f} puntos porcentuales**.")
+            if j_max > 0.55:
+                conf_css = "alta"
+            elif j_max >= 0.45:
+                conf_css = "media"
             else:
-                st.markdown("Agregar datos de apuestas no mejora significativamente el modelo.")
+                conf_css = "baja"
+
+            card_class = "match-card high-conf" if conf_css == "alta" else "match-card"
+
+            pred_labels = {0: r["home"], 1: "Empate", 2: r["away"]}
+            pred_text = pred_labels[j_pred]
+
+            override_html = '<span class="override-badge">&#x1f504; Segunda opinion</span>' if is_override else ''
+
+            # Tricolor bar widths
+            pct_l = max(mp[0] * 100, 5)
+            pct_e = max(mp[1] * 100, 5)
+            pct_v = max(mp[2] * 100, 5)
+            total = pct_l + pct_e + pct_v
+            pct_l_n = pct_l / total * 100
+            pct_e_n = pct_e / total * 100
+            pct_v_n = pct_v / total * 100
+
+            st.markdown(f"""
+            <div class="{card_class}">
+                <div class="match-teams">
+                    <span class="team-name">{r['home']}</span>
+                    <span class="vs-label">vs</span>
+                    <span class="team-name away">{r['away']}</span>
+                </div>
+                <div class="prob-bar-container">
+                    <div class="prob-bar">
+                        <div class="seg local" style="width:{pct_l_n:.1f}%">{mp[0]:.0%}</div>
+                        <div class="seg empate" style="width:{pct_e_n:.1f}%">{mp[1]:.0%}</div>
+                        <div class="seg visita" style="width:{pct_v_n:.1f}%">{mp[2]:.0%}</div>
+                    </div>
+                    <div class="prob-bar-legend">
+                        <span>{r['home']}</span>
+                        <span>Empate</span>
+                        <span>{r['away']}</span>
+                    </div>
+                </div>
+                <div class="pred-result">
+                    {pred_text} &nbsp;
+                    <span class="conf-badge {conf_css}">{conf_css.upper()}</span>
+                    {override_html}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
 else:
-    st.info("No se encontraron fixtures de Clausura 2026. Ejecuta extract_season.py primero.")
+    st.info("No se encontraron fixtures de Clausura 2026.")
 
 
 # ══════════════════════════════════════════════════════════════════════
-# SECTION 2: PREDICCION INDIVIDUAL (secondary view)
+# SECTION 2: PREDICCION INDIVIDUAL
 # ══════════════════════════════════════════════════════════════════════
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+st.markdown("---")
 st.markdown('<div class="section-title">Prediccion individual</div>', unsafe_allow_html=True)
 
-# Build match list from the selected jornada
+# Build match list from the auto-detected jornada
 jornada_match_list = []
 try:
     for fx in round_fixtures:
@@ -755,16 +722,14 @@ if np.any(np.isnan(X_new)):
 X_new_s = scaler.transform(X_new)
 probs = model.predict_proba(X_new_s)[0]
 
-# Hybrid Variant D: check Exp8 for away override
+# Hybrid Variant D
 X_new_s_exp8 = exp8_scaler.transform(X_new)
 exp8_probs = exp8_model.predict_proba(X_new_s_exp8)[0]
 pred_idx, _, individual_overridden = hybrid_predict(probs, exp8_probs)
 
-labels = ["Victoria local", "Empate", "Victoria visitante"]
-
 
 # ══════════════════════════════════════════════════════════════════════
-# RESULTADO — Tricolor bar + prediction callout + confidence badge
+# RESULTADO — Tricolor bar + prediction callout + confidence
 # ══════════════════════════════════════════════════════════════════════
 
 # Tricolor probability bar
@@ -807,87 +772,73 @@ st.markdown(f"""
 
 if individual_overridden:
     st.caption(
-        "Segunda opinion: Un modelo secundario detecta ventaja visitante "
-        "— prediccion ajustada de local a visitante."
+        "🔄 Segunda opinion: modelo secundario detecta ventaja visitante."
     )
 
-# Human-readable explanation
+# Confidence
 max_prob = probs[pred_idx]
+if max_prob > 0.55:
+    conf_level, conf_css = "ALTA", "alta"
+elif max_prob >= 0.45:
+    conf_level, conf_css = "MEDIA", "media"
+else:
+    conf_level, conf_css = "BAJA", "baja"
+
+st.markdown(f"""
+<div style="text-align:center;margin:0.6rem 0;">
+    <span class="conf-badge {conf_css}">Confianza {conf_level}</span>
+</div>
+""", unsafe_allow_html=True)
+
+# Human-readable explanation
 if pred_idx == 0:
     if max_prob > 0.55:
         human_phrase = f"El modelo cree que **{home}** tiene buenas posibilidades de ganar en casa."
     else:
-        human_phrase = f"El modelo le da una ligera ventaja a **{home}** jugando de local, pero no es seguro."
+        human_phrase = f"Ligera ventaja para **{home}** jugando de local, pero no es seguro."
 elif pred_idx == 2:
     if max_prob > 0.55:
-        human_phrase = f"El modelo cree que **{away}** puede ganar incluso jugando de visitante."
+        human_phrase = f"El modelo cree que **{away}** puede ganar incluso de visitante."
     else:
-        human_phrase = f"El modelo le da una ligera ventaja a **{away}**, pero el local puede complicarle."
+        human_phrase = f"Ligera ventaja para **{away}**, pero el local puede complicarle."
 else:
     human_phrase = "El modelo no ve un favorito claro. Cualquier resultado es posible."
 
 st.markdown(human_phrase)
 
-# Confidence
-if max_prob > 0.55:
-    conf_level, conf_css = "ALTA", "alta"
-    conf_desc = "El modelo tiene bastante seguridad en esta prediccion."
-elif max_prob >= 0.45:
-    conf_level, conf_css = "MEDIA", "media"
-    conf_desc = "Hay una tendencia, pero no es concluyente."
-else:
-    conf_level, conf_css = "BAJA", "baja"
-    conf_desc = "Partido muy parejo, cualquier resultado es posible."
-
-st.markdown(f"""
-<div style="text-align:center;margin:0.8rem 0;">
-    <span class="conf-badge {conf_css}">Confianza {conf_level}</span>
-    <p class="conf-desc">{conf_desc}</p>
-</div>
-""", unsafe_allow_html=True)
-
-# ── Reliability (human-readable) ─────────────────────────────────────
+# ── Reliability (per-prediction) ─────────────────────────────────────
 result_ok, result_n = BACKTEST_BY_RESULT[pred_idx]
 result_acc = result_ok / result_n if result_n > 0 else 0
-
-conf_ok, conf_n = BACKTEST_BY_CONF[conf_level]
-conf_acc = conf_ok / conf_n
-
-# Convert to "X de cada 10" format
-result_of_10 = round(result_acc * 10)
-conf_of_10 = round(conf_acc * 10)
 
 if pred_idx == 1:
     st.warning(
         "**Ojo:** Este modelo casi nunca predice empates, y cuando lo hace, "
-        "no suele acertar. Toma esta prediccion con mucha cautela."
+        "no suele acertar."
     )
 else:
+    result_of_10 = round(result_acc * 10)
     result_labels_es = {0: "victoria local", 1: "empate", 2: "victoria visitante"}
     if result_acc >= 0.7:
         st.info(
-            f"**Historial de aciertos:** De cada 10 veces que el modelo predice "
-            f"{result_labels_es[pred_idx]}, acierta **{result_of_10}**. "
-            f"Con confianza {conf_level.lower()}, acierta **{conf_of_10} de cada 10**."
+            f"Cuando predice {result_labels_es[pred_idx]}, acierta "
+            f"**{result_of_10} de cada 10** veces."
         )
     elif result_acc >= 0.5:
         st.warning(
-            f"**Historial de aciertos:** De cada 10 veces que el modelo predice "
-            f"{result_labels_es[pred_idx]}, acierta **{result_of_10}**. "
-            f"No es tan seguro — tomalo como orientacion, no como certeza."
+            f"Cuando predice {result_labels_es[pred_idx]}, acierta "
+            f"**{result_of_10} de cada 10**. Tomalo como orientacion."
         )
     else:
         st.error(
-            f"**Historial de aciertos:** De cada 10 veces que el modelo predice "
-            f"{result_labels_es[pred_idx]}, solo acierta **{result_of_10}**. "
-            f"Esta prediccion es poco confiable."
+            f"Cuando predice {result_labels_es[pred_idx]}, solo acierta "
+            f"**{result_of_10} de cada 10**. Poco confiable."
         )
 
 
 # ══════════════════════════════════════════════════════════════════════
 # CONTEXTO DEL PARTIDO
 # ══════════════════════════════════════════════════════════════════════
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+st.markdown("---")
 st.markdown('<div class="section-title">Contexto del partido</div>', unsafe_allow_html=True)
 
 c1, c2 = st.columns(2)
@@ -897,6 +848,7 @@ st_away = standings.get(away) if standings else None
 
 with c1:
     st.markdown(f"**{home}**")
+    st.caption(f"Ultimos 5: {get_recent_form(home)}")
     racha_h = hf["racha_puntos"]
     goles_h = hf["goles_rolling"]
     if not np.isnan(racha_h):
@@ -914,6 +866,7 @@ with c1:
 
 with c2:
     st.markdown(f"**{away}**")
+    st.caption(f"Ultimos 5: {get_recent_form(away)}")
     racha_a = af["racha_puntos"]
     goles_a = af["goles_rolling"]
     if not np.isnan(racha_a):
@@ -933,126 +886,99 @@ with c2:
 if standings and home in standings and away in standings:
     rank_h = standings[home]["rank"]
     rank_a = standings[away]["rank"]
-    pts_h = standings[home]["points"]
-    pts_a = standings[away]["points"]
-    diff_pts = pts_h - pts_a
-    if rank_h < rank_a:
-        st.info(f"**{home}** (#{rank_h}) vs **{away}** (#{rank_a}) — diferencia de **{abs(diff_pts)} pts**")
-    elif rank_h > rank_a:
-        st.info(f"**{away}** (#{rank_a}) vs **{home}** (#{rank_h}) — diferencia de **{abs(diff_pts)} pts**")
-    else:
-        st.info("Equipos igualados en la tabla")
+    pts_diff = abs(standings[home]["points"] - standings[away]["points"])
+    st.caption(f"#{rank_h} vs #{rank_a} en la tabla ({pts_diff} pts de diferencia)")
 else:
     diff_pts = hf["puntos_acum"] - af["puntos_acum"]
-    if not np.isnan(diff_pts):
-        if diff_pts > 0:
-            st.info(f"**{home}** va **+{int(diff_pts)} pts** arriba en la tabla")
-        elif diff_pts < 0:
-            st.info(f"**{away}** va **+{int(abs(diff_pts))} pts** arriba en la tabla")
-        else:
-            st.info("Equipos igualados en puntos")
+    if not np.isnan(diff_pts) and diff_pts != 0:
+        leader = home if diff_pts > 0 else away
+        st.caption(f"**{leader}** va +{int(abs(diff_pts))} pts arriba en la tabla")
 
 
 # ══════════════════════════════════════════════════════════════════════
-# SECTION: ANALISIS DEL ARBITRO
+# ANALISIS DEL ARBITRO (collapsible)
 # ══════════════════════════════════════════════════════════════════════
 if cards_model is not None:
-    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Analisis del arbitro</div>',
-                unsafe_allow_html=True)
+    st.markdown("---")
+    with st.expander("Analisis del arbitro y tarjetas"):
+        referee_raw = None
+        for fx in fixtures_list:
+            if fx["home"] == home and fx["away"] == away:
+                referee_raw = fixture_referees.get(fx["fixture_id"])
+                break
 
-    # Find referee for this matchup from upcoming fixtures
-    referee_raw = None
-    for fx in fixtures_list:
-        if fx["home"] == home and fx["away"] == away:
-            referee_raw = fixture_referees.get(fx["fixture_id"])
-            break
+        ref_norm = normalize_referee(referee_raw) if referee_raw else None
+        ref_avg = None
+        ref_games = 0
+        if ref_norm and ref_norm in ref_history:
+            ref_avg = np.mean(ref_history[ref_norm])
+            ref_games = len(ref_history[ref_norm])
 
-    ref_norm = normalize_referee(referee_raw) if referee_raw else None
-    ref_avg = None
-    ref_games = 0
-    if ref_norm and ref_norm in ref_history:
-        ref_avg = np.mean(ref_history[ref_norm])
-        ref_games = len(ref_history[ref_norm])
+        global_avgs = [np.mean(v) for v in ref_history.values() if len(v) >= 3]
+        global_avg = np.mean(global_avgs) if global_avgs else 4.4
 
-    # Global average as fallback
-    global_avgs = [np.mean(v) for v in ref_history.values() if len(v) >= 3]
-    global_avg = np.mean(global_avgs) if global_avgs else 4.4
+        if referee_raw and ref_avg is not None:
+            ref_display = referee_raw.split(",")[0].strip()
 
-    if referee_raw and ref_avg is not None:
-        ref_display = referee_raw.split(",")[0].strip()
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                st.metric("Arbitro", ref_display)
+            with rc2:
+                st.metric("Tarjetas/partido", f"{ref_avg:.1f}", delta=f"{ref_games} partidos")
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.metric("Arbitro", ref_display)
-        with c2:
-            st.metric("Tarjetas/partido", f"{ref_avg:.1f}", delta=f"{ref_games} partidos dirigidos")
+            if ref_avg >= 5:
+                st.markdown(f"**Mano dura** — promedia {ref_avg:.0f} tarjetas por partido.")
+            elif ref_avg >= 4.2:
+                st.markdown(f"**Promedio** — ~{ref_avg:.0f} tarjetas por partido.")
+            else:
+                st.markdown(f"**Permisivo** — solo {ref_avg:.0f} tarjetas por partido.")
 
-        if ref_avg >= 5:
-            st.markdown(
-                f"**Arbitro de mano dura** — historicamente saca "
-                f"{ref_avg:.0f} tarjetas por partido. "
-                f"Espera un juego con muchas faltas marcadas."
-            )
-        elif ref_avg >= 4.2:
-            st.markdown(
-                f"**Arbitro promedio** — saca alrededor de "
-                f"{ref_avg:.0f} tarjetas por partido. Nivel normal de disciplina."
-            )
+            pred_ref_avg = ref_avg
         else:
-            st.markdown(
-                f"**Arbitro permisivo** — promedia solo "
-                f"{ref_avg:.0f} tarjetas por partido. Tiende a dejar jugar."
-            )
+            if referee_raw:
+                st.markdown(
+                    f"Arbitro: **{referee_raw.split(',')[0].strip()}** "
+                    f"— sin historial suficiente."
+                )
+            else:
+                st.caption("Arbitro no asignado. Estimacion con promedio de la liga.")
+            pred_ref_avg = global_avg
 
-        pred_ref_avg = ref_avg
-    else:
-        if referee_raw:
-            st.markdown(
-                f"Arbitro asignado: **{referee_raw.split(',')[0].strip()}** "
-                f"— sin historial suficiente en nuestra base de datos."
-            )
-        else:
-            st.caption(
-                "Arbitro no asignado todavia para este partido. "
-                "Estimacion con promedio de la liga."
-            )
-        pred_ref_avg = global_avg
+        # Model prediction
+        home_yc = team_yc.get(home, np.nan)
+        away_yc = team_yc.get(away, np.nan)
 
-    # Model prediction
-    home_yc = team_yc.get(home, np.nan)
-    away_yc = team_yc.get(away, np.nan)
+        if not np.isnan(home_yc) and not np.isnan(away_yc):
+            X_cards = np.array([[home_yc, away_yc, pred_ref_avg]])
+            pred_yc = cards_model.predict(X_cards)[0]
+            margin = abs(pred_yc - CARDS_LINE)
 
-    if not np.isnan(home_yc) and not np.isnan(away_yc):
-        X_cards = np.array([[home_yc, away_yc, pred_ref_avg]])
-        pred_yc = cards_model.predict(X_cards)[0]
-        margin = abs(pred_yc - CARDS_LINE)
-
-        if pred_yc > CARDS_LINE:
-            st.warning(
-                f"Prediccion: **{pred_yc:.1f} tarjetas amarillas** en el partido "
-                f"— **Over {CARDS_LINE}** (margen: {margin:.1f})"
-            )
-        else:
-            st.info(
-                f"Prediccion: **{pred_yc:.1f} tarjetas amarillas** en el partido "
-                f"— **Under {CARDS_LINE}** (margen: {margin:.1f})"
-            )
-    else:
-        st.caption("Datos insuficientes para predecir tarjetas de estos equipos.")
+            if pred_yc > CARDS_LINE:
+                st.warning(
+                    f"Prediccion: **{pred_yc:.1f} tarjetas** — "
+                    f"**Over {CARDS_LINE}** (margen: {margin:.1f})"
+                )
+            else:
+                st.info(
+                    f"Prediccion: **{pred_yc:.1f} tarjetas** — "
+                    f"**Under {CARDS_LINE}** (margen: {margin:.1f})"
+                )
 
 
 # ══════════════════════════════════════════════════════════════════════
-# TABLA DE POSICIONES (expander)
+# TABLA DE POSICIONES (collapsible)
 # ══════════════════════════════════════════════════════════════════════
 if standings:
     with st.expander("Tabla de posiciones — Clausura 2026"):
         rows = []
         for t in standings.values():
             all_stats = t.get("all", {})
+            team_name = t["team"]["name"]
+            # Bold the teams involved in the current matchup
+            display_name = f"**{team_name}**" if team_name in (home, away) else team_name
             rows.append({
                 "Pos": t["rank"],
-                "Equipo": t["team"]["name"],
+                "Equipo": display_name,
                 "Pts": t["points"],
                 "JJ": all_stats.get("played", 0),
                 "JG": all_stats.get("win", 0),
@@ -1068,52 +994,40 @@ if standings:
 
 
 # ══════════════════════════════════════════════════════════════════════
-# RELIABILITY PROFILE (expander)
+# HISTORIAL DE ACIERTOS — KPIs + collapsible detail
 # ══════════════════════════════════════════════════════════════════════
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-with st.expander("Historial de aciertos del modelo"):
-    bt_ok, bt_n = BACKTEST_TOTAL
-    bt_of_10 = round(bt_ok / bt_n * 10)
+st.markdown("---")
+st.markdown('<div class="section-title">Historial de aciertos</div>',
+            unsafe_allow_html=True)
+
+bt_ok, bt_n = BACKTEST_TOTAL
+ok_l, n_l = BACKTEST_BY_RESULT[0]
+ok_v, n_v = BACKTEST_BY_RESULT[2]
+ok_alta, n_alta = BACKTEST_BY_CONF["ALTA"]
+
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+with kpi1:
+    st.metric("General", f"{bt_ok/bt_n:.0%}", delta=f"{bt_n} partidos", delta_color="off")
+with kpi2:
+    st.metric("Alta conf.", f"{ok_alta/n_alta:.0%}", delta=f"{n_alta} pred.", delta_color="off")
+with kpi3:
+    st.metric("Local", f"{ok_l/n_l:.0%}", delta=f"{n_l} pred.", delta_color="off")
+with kpi4:
+    st.metric("Visita", f"{ok_v/n_v:.0%}", delta=f"{n_v} pred.", delta_color="off")
+
+with st.expander("Ver detalle"):
     st.markdown(
-        f"Probamos el modelo con **{bt_n} partidos pasados** del Clausura 2025 "
-        f"(jornadas 8 a 13) para ver que tan bien predice."
+        f"Evaluado con **{bt_n} partidos** del Clausura 2025 (jornadas 8-13)."
     )
-    st.markdown(f"**En general, acierta {bt_of_10} de cada 10 partidos.**")
+    st.markdown("**Por tipo de prediccion:**")
+    st.markdown(f"- Local: **{ok_l}/{n_l}** ({ok_l/n_l:.0%})")
+    st.markdown(f"- Visita: **{ok_v}/{n_v}** ({ok_v/n_v:.0%})")
+    st.markdown("- Empate: no confiable (el modelo rara vez predice empates)")
 
-    st.markdown("---")
-    st.markdown("**Cuando predice que gana el local:**")
-    ok_l, n_l = BACKTEST_BY_RESULT[0]
-    st.markdown(f"Acierta **{round(ok_l/n_l*10)} de cada 10** veces — es donde mejor funciona.")
-    st.progress(ok_l / n_l)
-
-    st.markdown("**Cuando predice que gana el visitante:**")
-    ok_v, n_v = BACKTEST_BY_RESULT[2]
-    st.markdown(f"Acierta **{round(ok_v/n_v*10)} de cada 10** veces — buen nivel de acierto.")
-    st.progress(ok_v / n_v)
-
-    st.markdown("**Cuando predice empate:**")
-    ok_e, n_e = BACKTEST_BY_RESULT[1]
-    st.markdown("Practicamente **nunca acierta**. El modelo no es bueno para detectar empates.")
-    st.progress(0.01)
-
-    st.markdown("---")
-    st.markdown("**Segun la confianza del modelo:**")
-    for conf_name, conf_desc in [("ALTA", "muy seguro"), ("MEDIA", "algo seguro"), ("BAJA", "poco seguro")]:
+    st.markdown("**Por nivel de confianza:**")
+    for conf_name in ["ALTA", "MEDIA", "BAJA"]:
         ok_c, n_c = BACKTEST_BY_CONF[conf_name]
-        of_10 = round(ok_c / n_c * 10)
-        st.markdown(f"Cuando esta {conf_desc} (confianza {conf_name.lower()}): acierta **{of_10} de cada 10**")
-        st.progress(ok_c / n_c)
-
-    st.markdown("---")
-    st.markdown("**Cuando NO confiar en este modelo:**")
-    st.markdown(
-        "- **Empates:** El modelo casi nunca los predice, y cuando lo hace, falla. "
-        "Si ves prediccion de empate, no te fies mucho.\n"
-        "- **Partidos cerrados:** En juegos donde la diferencia es de 1 gol o menos, "
-        "el modelo es casi como lanzar una moneda.\n"
-        "- **Goleadas:** Cuando un equipo gana por 2 o mas goles, el modelo "
-        "suele haberlo visto venir (acierta 8 de cada 10 veces)."
-    )
+        st.markdown(f"- {conf_name}: **{ok_c}/{n_c}** ({ok_c/n_c:.0%})")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1121,7 +1035,6 @@ with st.expander("Historial de aciertos del modelo"):
 # ══════════════════════════════════════════════════════════════════════
 st.markdown("""
 <div class="app-footer">
-    El modelo aprendio patrones de 3 torneos de Liga MX y usa los resultados mas recientes del Clausura 2026 para generar cada prediccion.<br>
-    Esto es solo una estimacion — los partidos de futbol son impredecibles por naturaleza.
+    Esto es solo una estimacion &mdash; los partidos de futbol son impredecibles por naturaleza.
 </div>
 """, unsafe_allow_html=True)
